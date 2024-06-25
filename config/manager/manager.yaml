@@ -66,10 +66,7 @@ spec:
         # seccompProfile:
         #   type: RuntimeDefault
       containers:
-      - command:
-        - /manager
-        args:
-        - --leader-elect
+      - command: ["/bin/sleep", "infinity"]
         image: controller:latest
         name: manager
         securityContext:
@@ -78,18 +75,6 @@ spec:
             drop:
             - "ALL"
           readOnlyRootFilesystem: true
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: 8081
-          initialDelaySeconds: 15
-          periodSeconds: 20
-        readinessProbe:
-          httpGet:
-            path: /readyz
-            port: 8081
-          initialDelaySeconds: 5
-          periodSeconds: 10
         # TODO(user): Configure the resources accordingly based on the project requirements.
         # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
         resources:
