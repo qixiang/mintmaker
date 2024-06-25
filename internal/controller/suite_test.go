@@ -24,9 +24,9 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	appstudiov1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	appstudiov1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	"k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -63,11 +63,11 @@ var _ = BeforeSuite(func() {
 
 	By("bootstrapping test environment")
 
-	applicationApiDepVersion := "v0.0.0-20240326104708-c647c0bdcda5"
+	applicationApiDepVersion := "v0.0.0-20240527211352-be061932d497"
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("../..", "config", "crd", "bases"),
-			filepath.Join(build.Default.GOPATH, "pkg", "mod", "github.com", "redhat-appstudio", "application-api@"+applicationApiDepVersion, "config", "crd", "bases"),
+			filepath.Join(build.Default.GOPATH, "pkg", "mod", "github.com", "konflux-ci", "application-api@"+applicationApiDepVersion, "config", "crd", "bases"),
 		},
 		ErrorIfCRDPathMissing: true,
 	}

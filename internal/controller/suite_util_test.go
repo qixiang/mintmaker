@@ -32,8 +32,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	gh "github.com/google/go-github/v45/github"
-	mmv1alpha1 "github.com/konflux-ci/mintmaker/api/v1alpha1"
 	appstudiov1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
+	mmv1alpha1 "github.com/konflux-ci/mintmaker/api/v1alpha1"
 
 	. "github.com/konflux-ci/mintmaker/pkg/common"
 	"github.com/konflux-ci/mintmaker/pkg/git/github"
@@ -250,6 +250,21 @@ func deleteComponent(resourceKey types.NamespacedName) {
 	Eventually(func() bool {
 		return k8sErrors.IsNotFound(k8sClient.Get(ctx, resourceKey, component))
 	}, timeout, interval).Should(BeTrue())
+}
+
+func disableComponentMintmaker(resourceKey types.NamespacedName) {
+	component := &appstudiov1alpha1.Component{}
+	Expect(k8sClient.Get(ctx, resourceKey, component)).Should(Succeed())
+
+	if component.Annotations == nil {
+		component.Annotations = make(map[string]string)
+	}
+
+	component.Annotations[MintMakerDisabledAnnotationName] = "true"
+
+	Expect(k8sClient.Update(ctx, component)).Should(Succeed())
+
+	getComponent(resourceKey)
 }
 
 func createDependencyUpdateCheck(resourceKey types.NamespacedName, processed bool) {

@@ -2,8 +2,10 @@ package common
 
 const (
 	MintMakerNamespaceName = "mintmaker"
-	//
+	// Mintmaker will add processed annotation when the dependencyupdatecheck is processed by controller
 	MintMakerProcessedAnnotationName = "mintmaker.appstudio.redhat.com/processed"
+	// Mintmaker can be disabled by disabled annotation in component
+	MintMakerDisabledAnnotationName = "mintmaker.appstudio.redhat.com/disabled"
 	// Pipelines as Code GitHub appliaction configuration secret name.
 	// The secret is located in Build Service namespace.
 	PipelinesAsCodeGitHubAppSecretName = "pipelines-as-code-secret"

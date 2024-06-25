@@ -32,12 +32,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 
+	appstudiov1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	mmv1alpha1 "github.com/konflux-ci/mintmaker/api/v1alpha1"
 	. "github.com/konflux-ci/mintmaker/pkg/common"
 	"github.com/konflux-ci/mintmaker/pkg/git"
 	"github.com/konflux-ci/mintmaker/pkg/k8s"
 	"github.com/konflux-ci/mintmaker/pkg/renovate"
-	appstudiov1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 )
 
 // DependencyUpdateCheckReconciler reconciles a DependencyUpdateCheck object
@@ -103,21 +103,29 @@ func (r *DependencyUpdateCheckReconciler) Reconcile(ctx context.Context, req ctr
 	}
 
 	// Get Components
-	componentList := &appstudiov1alpha1.ComponentList{}
-	if err := r.client.List(ctx, componentList, &client.ListOptions{}); err != nil {
+	allComponents := &appstudiov1alpha1.ComponentList{}
+	if err := r.client.List(ctx, allComponents, &client.ListOptions{}); err != nil {
 		log.Error(err, "failed to list Components")
 		return ctrl.Result{}, err
 	}
 
-	numComponents := len(componentList.Items)
-	log.Info("found components", "components", numComponents)
+	log.Info("found components", "components", len(allComponents.Items))
 
-	if numComponents == 0 {
+	// Filter out components which have mintmaker disabled
+	componentList := []appstudiov1alpha1.Component{}
+	for _, component := range allComponents.Items {
+		if value, exists := component.Annotations[MintMakerDisabledAnnotationName]; !exists || value != "true" {
+			componentList = append(componentList, component)
+		}
+	}
+
+	log.Info("found components with mintmaker disabled", "components", len(allComponents.Items)-len(componentList))
+	if len(componentList) == 0 {
 		return ctrl.Result{}, nil
 	}
 
 	var scmComponents []*git.ScmComponent
-	for _, component := range componentList.Items {
+	for _, component := range componentList {
 		gitProvider, err := getGitProvider(component)
 		if err != nil {
 			// component misconfiguration shouldn't prevent other components from being updated

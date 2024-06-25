@@ -181,5 +181,30 @@ var _ = Describe("DependencyUpdateCheck Controller", func() {
 			deleteComponent(componentKey)
 			deleteDependencyUpdateCheck(dependencyUpdateCheckKey)
 		})
+
+		It("should not trigger job for component has mintmaker disabled annotation", func() {
+			installedRepositoryUrls := []string{
+				"https://github.com/konfluxtest/repo",
+			}
+			github.GetAllAppInstallations = func(appIdStr string, privateKeyPem []byte) ([]github.ApplicationInstallation, string, error) {
+				repositories := generateRepositories(installedRepositoryUrls)
+				return []github.ApplicationInstallation{generateInstallation(repositories)}, "slug", nil
+			}
+
+			// Create a component with GitHub repository
+			createNamespace(defaultNS)
+			componentKey := types.NamespacedName{Namespace: defaultNS, Name: "test-component"}
+			createComponent(componentKey, "test-application", "https://github.com/konfluxtest/repo", "main", "/")
+			disableComponentMintmaker(componentKey)
+
+			// Create a DependencyUpdateCheck CR in "mintmaker" namespace
+			dependencyUpdateCheckKey := types.NamespacedName{Namespace: MintMakerNamespaceName, Name: "dependencyupdatecheck-sample"}
+			createDependencyUpdateCheck(dependencyUpdateCheckKey, false)
+
+			Eventually(listJobs).WithArguments(MintMakerNamespaceName).WithTimeout(timeout).Should(HaveLen(0))
+
+			deleteComponent(componentKey)
+			deleteDependencyUpdateCheck(dependencyUpdateCheckKey)
+		})
 	})
 })
