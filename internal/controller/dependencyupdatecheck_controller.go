@@ -84,7 +84,7 @@ func (r *DependencyUpdateCheckReconciler) Reconcile(ctx context.Context, req ctr
 	}
 
 	// If the DependencyUpdateCheck has been handled before, skip it
-	if _, processed := dependencyupdatecheck.Annotations[MintMakerProcessedAnnotationName]; processed {
+	if value, exists := dependencyupdatecheck.Annotations[MintMakerProcessedAnnotationName]; exists && value == "true" {
 		log.Info(fmt.Sprintf("DependencyUpdateCheck has been processed: %v", req.NamespacedName))
 		return ctrl.Result{}, nil
 	}
