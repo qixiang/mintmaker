@@ -56,6 +56,29 @@ func NewJobCoordinator(client client.Client, scheme *runtime.Scheme) *JobCoordin
 	return &JobCoordinator{tasksPerJob: tasksPerJobInt, renovateImageUrl: renovateImageUrl, client: client, scheme: scheme, debug: false}
 }
 
+// getCAConfigMap returns the first ConfigMap found in mintmaker namespace
+// that has the label 'config.openshift.io/inject-trusted-cabundle: "true"'.
+// If no such ConfigMap is found, it returns nil.
+func (j *JobCoordinator) getCAConfigMap(ctx context.Context) (*corev1.ConfigMap, error) {
+	configMapList := &corev1.ConfigMapList{}
+	labelSelector := client.MatchingLabels{"config.openshift.io/inject-trusted-cabundle": "true"}
+	listOptions := []client.ListOption{
+		client.InNamespace(MintMakerNamespaceName),
+		labelSelector,
+	}
+	err := j.client.List(ctx, configMapList, listOptions...)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(configMapList.Items) > 0 {
+		// Just return the configmap
+		return &configMapList.Items[0], nil
+	}
+
+	return nil, nil
+}
+
 func (j *JobCoordinator) Execute(ctx context.Context, tasks []*Task) error {
 
 	if len(tasks) == 0 {
@@ -169,6 +192,37 @@ func (j *JobCoordinator) Execute(ctx context.Context, tasks []*Task) error {
 	if err := j.client.Create(ctx, configMap); err != nil {
 		return err
 	}
+
+	// Check if a ConfigMap with the label `config.openshift.io/inject-trusted-cabundle: "true"` exists.
+	// If such a ConfigMap is found, add a volume to the job specification to mount this ConfigMap.
+	// The volume will be mounted at '/etc/pki/ca-trust/extracted/pem' within the job Pod.
+	caConfigMap, err := j.getCAConfigMap(ctx)
+	if err != nil {
+		return err
+	}
+	caVolume := corev1.Volume{
+		Name: "trusted-ca",
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{Name: caConfigMap.Name},
+				Items: []corev1.KeyToPath{
+					{
+						Key:  "ca-bundle.crt",
+						Path: "tls-ca-bundle.pem",
+					},
+				},
+			},
+		},
+	}
+	caVolumeMount := corev1.VolumeMount{
+		Name:      "trusted-ca",
+		MountPath: "/etc/pki/ca-trust/extracted/pem",
+		ReadOnly:  true,
+	}
+	job.Spec.Template.Spec.Volumes = append(job.Spec.Template.Spec.Volumes, caVolume)
+	job.Spec.Template.Spec.Containers[0].VolumeMounts = append(job.Spec.Template.Spec.Containers[0].VolumeMounts, caVolumeMount)
+
+	// Create the job
 	if err := j.client.Create(ctx, job); err != nil {
 		return err
 	}
