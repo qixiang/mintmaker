@@ -5,17 +5,40 @@
     ":gitSignOff",
     ":disableDependencyDashboard"
   ],
-  "ignorePresets": [":dependencyDashboard"],
+  "ignorePresets": [
+    ":dependencyDashboard"
+  ],
   "onboarding": false,
   "requireConfig": "optional",
   "platformCommit": true,
   "autodiscover": false,
-  "enabledManagers": ["tekton", "dockerfile", "rpm", "git-submodules", "regex", "argocd", "crossplane",
-                      "fleet", "flux", "helm-requirements", "helm-values", "helmfile", "helmsman", "helmv3",
-                      "jsonnet-bundler", "kubernetes", "kustomize"],
+  "enabledManagers": [
+    "tekton",
+    "dockerfile",
+    "rpm",
+    "git-submodules",
+    "regex",
+    "argocd",
+    "crossplane",
+    "fleet",
+    "flux",
+    "helm-requirements",
+    "helm-values",
+    "helmfile",
+    "helmsman",
+    "helmv3",
+    "jsonnet-bundler",
+    "kubernetes",
+    "kustomize"
+  ],
   "tekton": {
-    "fileMatch": ["\\.yaml$","\\.yml$"],
-    "includePaths": [".tekton/**"],
+    "fileMatch": [
+      "\\.yaml$",
+      "\\.yml$"
+    ],
+    "includePaths": [
+      ".tekton/**"
+    ],
     "packageRules": [
       {
         "matchPackagePatterns": [
@@ -33,7 +56,9 @@
           "Change",
           "Notes"
         ],
-        "prBodyDefinitions": { "Notes": "{{#if (or (containsString updateType 'minor') (containsString updateType 'major'))}}:warning:[migration](https://github.com/redhat-appstudio/build-definitions/blob/main/task/{{{replace '^quay.io/(redhat-appstudio-tekton-catalog|konflux-ci/tekton-catalog)/task-' '' packageName}}}/{{{newVersion}}}/MIGRATION.md):warning:{{/if}}" },
+        "prBodyDefinitions": {
+          "Notes": "{{#if (or (containsString updateType 'minor') (containsString updateType 'major'))}}:warning:[migration](https://github.com/redhat-appstudio/build-definitions/blob/main/task/{{{replace '^quay.io/(redhat-appstudio-tekton-catalog|konflux-ci/tekton-catalog)/task-' '' packageName}}}/{{{newVersion}}}/MIGRATION.md):warning:{{/if}}"
+        },
         "prBodyTemplate": "{{{header}}}{{{table}}}{{{notes}}}{{{changelogs}}}{{{controls}}}{{{footer}}}",
         "recreateWhen": "always",
         "rebaseWhen": "behind-base-branch"
@@ -55,7 +80,9 @@
     "recreateWhen": "always",
     "rebaseWhen": "behind-base-branch",
     "branchTopic": "lock-file-maintenance",
-    "schedule": ["at any time"]
+    "schedule": [
+      "at any time"
+    ]
   },
   "argocd": {
     "additionalBranchPrefix": "{{baseBranch}}/",
