@@ -40,6 +40,11 @@
       }
     ]
   },
+  "dockerfile": {
+    "enabled": true,
+    "additionalBranchPrefix": "{{baseBranch}}/",
+    "branchPrefix": "konflux/mintmaker/"
+  },
   "git-submodules": {
     "enabled": true,
     "additionalBranchPrefix": "{{baseBranch}}/",
