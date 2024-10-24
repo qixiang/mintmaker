@@ -13,6 +13,9 @@
   "inheritConfig": true,
   "platformCommit": true,
   "autodiscover": false,
+  "vulnerabilityAlerts": {
+    "enabled": false
+  },
   "enabledManagers": [
     "tekton",
     "dockerfile",
