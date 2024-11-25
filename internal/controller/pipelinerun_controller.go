@@ -18,13 +18,15 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
+	. "github.com/konflux-ci/mintmaker/pkg/common"
 	tektonv1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/log"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
 
@@ -44,9 +46,15 @@ type PipelineRunReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.16.3/pkg/reconcile
 func (r *PipelineRunReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	log := ctrllog.FromContext(ctx).WithName("PipelineRun")
+	ctx = ctrllog.IntoContext(ctx, log)
 
-	// TODO: manage different events here
+	if req.Namespace != MintMakerNamespaceName {
+		return ctrl.Result{}, nil
+	}
+
+	log.Info(fmt.Sprintf("PipelineRun is updated: %v", req.NamespacedName))
+
 	return ctrl.Result{}, nil
 }
 
@@ -61,7 +69,7 @@ func (r *PipelineRunReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithEventFilter(predicate.Funcs{
 			CreateFunc:  func(createEvent event.CreateEvent) bool { return false },
 			DeleteFunc:  func(deleteEvent event.DeleteEvent) bool { return false },
-			UpdateFunc:  func(updateEvent event.UpdateEvent) bool { return false },
+			UpdateFunc:  func(updateEvent event.UpdateEvent) bool { return true },
 			GenericFunc: func(genericEvent event.GenericEvent) bool { return false },
 		}).
 		Complete(r)
