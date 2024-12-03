@@ -27,10 +27,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 )
@@ -42,15 +42,22 @@ const (
 
 // DependencyUpdateCheckReconciler reconciles a DependencyUpdateCheck object
 type DependencyUpdateCheckReconciler struct {
-	client.Client
-	Scheme           *runtime.Scheme
-	renovateImageUrl string
+	client client.Client
+	Scheme *runtime.Scheme
+}
+
+func NewDependencyUpdateCheckReconciler(client client.Client, scheme *runtime.Scheme, eventRecorder record.EventRecorder) *DependencyUpdateCheckReconciler {
+	return &DependencyUpdateCheckReconciler{
+		client: client,
+		Scheme: scheme,
+	}
 }
 
 // createPipelineRun creates and returns a new PipelineRun
 func (r *DependencyUpdateCheckReconciler) createPipelineRun(ctx context.Context) (*tektonv1beta1.PipelineRun, error) {
 
-	logger := log.FromContext(ctx)
+	log := ctrllog.FromContext(ctx).WithName("DependencyUpdateCheckController")
+	ctx = ctrllog.IntoContext(ctx, log)
 	timestamp := time.Now().Unix()
 	name := fmt.Sprintf("renovate-pipelinerun-%d-%s", timestamp, RandomString(5))
 
@@ -86,11 +93,11 @@ func (r *DependencyUpdateCheckReconciler) createPipelineRun(ctx context.Context)
 		},
 	}
 
-	if err := r.Client.Create(ctx, pipelineRun); err != nil {
+	if err := r.client.Create(ctx, pipelineRun); err != nil {
 		return nil, err
 	}
 
-	logger.Info(fmt.Sprintf("Created pipelinerun %s", name))
+	log.Info(fmt.Sprintf("Created pipelinerun %s", name))
 	return pipelineRun, nil
 }
 
@@ -110,7 +117,7 @@ func (r *DependencyUpdateCheckReconciler) Reconcile(ctx context.Context, req ctr
 	}
 
 	dependencyupdatecheck := &mmv1alpha1.DependencyUpdateCheck{}
-	err := r.Client.Get(ctx, req.NamespacedName, dependencyupdatecheck)
+	err := r.client.Get(ctx, req.NamespacedName, dependencyupdatecheck)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil
@@ -130,7 +137,7 @@ func (r *DependencyUpdateCheckReconciler) Reconcile(ctx context.Context, req ctr
 	}
 	dependencyupdatecheck.Annotations[MintMakerProcessedAnnotationName] = "true"
 
-	err = r.Client.Update(ctx, dependencyupdatecheck)
+	err = r.client.Update(ctx, dependencyupdatecheck)
 	if err != nil {
 		log.Error(err, "failed to update DependencyUpdateCheck annotations")
 		return ctrl.Result{}, nil
