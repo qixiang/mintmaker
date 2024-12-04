@@ -23,7 +23,7 @@ import (
 
 	mmv1alpha1 "github.com/konflux-ci/mintmaker/api/v1alpha1"
 	. "github.com/konflux-ci/mintmaker/pkg/common"
-	tektonv1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
+	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -42,19 +42,19 @@ const (
 
 // DependencyUpdateCheckReconciler reconciles a DependencyUpdateCheck object
 type DependencyUpdateCheckReconciler struct {
-	client client.Client
+	Client client.Client
 	Scheme *runtime.Scheme
 }
 
 func NewDependencyUpdateCheckReconciler(client client.Client, scheme *runtime.Scheme, eventRecorder record.EventRecorder) *DependencyUpdateCheckReconciler {
 	return &DependencyUpdateCheckReconciler{
-		client: client,
+		Client: client,
 		Scheme: scheme,
 	}
 }
 
 // createPipelineRun creates and returns a new PipelineRun
-func (r *DependencyUpdateCheckReconciler) createPipelineRun(ctx context.Context) (*tektonv1beta1.PipelineRun, error) {
+func (r *DependencyUpdateCheckReconciler) createPipelineRun(ctx context.Context) (*tektonv1.PipelineRun, error) {
 
 	log := ctrllog.FromContext(ctx).WithName("DependencyUpdateCheckController")
 	ctx = ctrllog.IntoContext(ctx, log)
@@ -62,20 +62,20 @@ func (r *DependencyUpdateCheckReconciler) createPipelineRun(ctx context.Context)
 	name := fmt.Sprintf("renovate-pipelinerun-%d-%s", timestamp, RandomString(5))
 
 	// Creating the pipelineRun definition
-	pipelineRun := &tektonv1beta1.PipelineRun{
+	pipelineRun := &tektonv1.PipelineRun{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: MintMakerNamespaceName,
 		},
-		Spec: tektonv1beta1.PipelineRunSpec{
-			Status: tektonv1beta1.PipelineRunSpecStatusPending,
-			PipelineSpec: &tektonv1beta1.PipelineSpec{
-				Tasks: []tektonv1beta1.PipelineTask{
+		Spec: tektonv1.PipelineRunSpec{
+			Status: tektonv1.PipelineRunSpecStatusPending,
+			PipelineSpec: &tektonv1.PipelineSpec{
+				Tasks: []tektonv1.PipelineTask{
 					{
 						Name: "build",
-						TaskSpec: &tektonv1beta1.EmbeddedTask{
-							TaskSpec: tektonv1beta1.TaskSpec{
-								Steps: []tektonv1beta1.Step{
+						TaskSpec: &tektonv1.EmbeddedTask{
+							TaskSpec: tektonv1.TaskSpec{
+								Steps: []tektonv1.Step{
 									{
 										Name:  "renovate",
 										Image: DefaultRenovateImageUrl,
@@ -93,7 +93,7 @@ func (r *DependencyUpdateCheckReconciler) createPipelineRun(ctx context.Context)
 		},
 	}
 
-	if err := r.client.Create(ctx, pipelineRun); err != nil {
+	if err := r.Client.Create(ctx, pipelineRun); err != nil {
 		return nil, err
 	}
 
@@ -117,7 +117,7 @@ func (r *DependencyUpdateCheckReconciler) Reconcile(ctx context.Context, req ctr
 	}
 
 	dependencyupdatecheck := &mmv1alpha1.DependencyUpdateCheck{}
-	err := r.client.Get(ctx, req.NamespacedName, dependencyupdatecheck)
+	err := r.Client.Get(ctx, req.NamespacedName, dependencyupdatecheck)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil
@@ -137,7 +137,7 @@ func (r *DependencyUpdateCheckReconciler) Reconcile(ctx context.Context, req ctr
 	}
 	dependencyupdatecheck.Annotations[MintMakerProcessedAnnotationName] = "true"
 
-	err = r.client.Update(ctx, dependencyupdatecheck)
+	err = r.Client.Update(ctx, dependencyupdatecheck)
 	if err != nil {
 		log.Error(err, "failed to update DependencyUpdateCheck annotations")
 		return ctrl.Result{}, nil

@@ -25,13 +25,6 @@ import (
 	. "github.com/konflux-ci/mintmaker/pkg/common"
 )
 
-/*
-	WHAT TO TEST:
-
-- should not create a pipelinerun for DependencyUpdateCheck CR which has been processed before
-- should create a pipeline run when a CR DependencyUpdateCheck is created
-- should not create a pipelinerun for DependencyUpdateCheck CR that is not from mintmaker namespace
-*/
 var _ = Describe("DependencyUpdateCheck Controller", func() {
 
 	var ()

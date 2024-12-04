@@ -25,7 +25,7 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
-	tektonv1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
+	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -51,7 +51,7 @@ func init() {
 
 	utilruntime.Must(appstudiov1alpha1.AddToScheme(scheme))
 	utilruntime.Must(mmv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(tektonv1beta1.AddToScheme(scheme))
+	utilruntime.Must(tektonv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 

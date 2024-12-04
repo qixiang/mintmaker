@@ -21,7 +21,7 @@ import (
 	"fmt"
 
 	. "github.com/konflux-ci/mintmaker/pkg/common"
-	tektonv1beta1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1beta1"
+	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -61,7 +61,7 @@ func (r *PipelineRunReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 // SetupWithManager sets up the controller with the Manager.
 func (r *PipelineRunReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&tektonv1beta1.PipelineRun{}).
+		For(&tektonv1.PipelineRun{}).
 		/* TODO: For the time being we just ignore all types of events
 		In a second implementation we are going to listen to changes in the pipelinerun
 		and one of these events will have to return true, and the reconcile can be stuff
