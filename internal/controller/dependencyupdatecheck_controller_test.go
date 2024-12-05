@@ -36,13 +36,13 @@ var _ = Describe("DependencyUpdateCheck Controller", func() {
 		})
 
 		_ = AfterEach(func() {
+			deletePipelineRuns(MintMakerNamespaceName)
 		})
 
 		It("should create a pipeline run when a CR DependencyUpdateCheck is created", func() {
 			// Create a DependencyUpdateCheck CR in "mintmaker" namespace
 			dependencyUpdateCheckKey := types.NamespacedName{Namespace: MintMakerNamespaceName, Name: "dependencyupdatecheck-sample"}
 			createDependencyUpdateCheck(dependencyUpdateCheckKey, false, nil)
-
 			Eventually(listPipelineRuns).WithArguments(MintMakerNamespaceName).Should(HaveLen(1))
 			deleteDependencyUpdateCheck(dependencyUpdateCheckKey)
 		})
@@ -57,7 +57,7 @@ var _ = Describe("DependencyUpdateCheck Controller", func() {
 
 		It("should not create a pipelinerun for DependencyUpdateCheck CR that is not from mintmaker namespace", func() {
 			// Create a DependencyUpdateCheck CR in "mintmaker" namespace, that was processed before
-			dependencyUpdateCheckKey := types.NamespacedName{Namespace: "wrong-namespace", Name: "dependencyupdatecheck-sample"}
+			dependencyUpdateCheckKey := types.NamespacedName{Namespace: "default", Name: "dependencyupdatecheck-sample"}
 			createDependencyUpdateCheck(dependencyUpdateCheckKey, false, nil)
 			Eventually(listPipelineRuns).WithArguments(MintMakerNamespaceName).Should(HaveLen(0))
 			deleteDependencyUpdateCheck(dependencyUpdateCheckKey)

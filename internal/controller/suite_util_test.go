@@ -328,7 +328,6 @@ func listPipelineRuns(namespace string) []tektonv1.PipelineRun {
 	pipelineruns := &tektonv1.PipelineRunList{}
 
 	err := k8sClient.List(ctx, pipelineruns, client.InNamespace(namespace))
-	fmt.Print(err)
 	Expect(err).ToNot(HaveOccurred())
 	return pipelineruns.Items
 }
@@ -339,6 +338,14 @@ func listJobs(namespace string) []batch.Job {
 	err := k8sClient.List(ctx, jobs, client.InNamespace(namespace))
 	Expect(err).ToNot(HaveOccurred())
 	return jobs.Items
+}
+
+func deletePipelineRuns(namespace string) {
+	err := k8sClient.DeleteAllOf(ctx, &tektonv1.PipelineRun{}, client.InNamespace(namespace), client.PropagationPolicy(metav1.DeletePropagationBackground))
+	Expect(err).ToNot(HaveOccurred())
+	Eventually(func() bool {
+		return len(listPipelineRuns(namespace)) == 0
+	}, 10*time.Second, 100*time.Millisecond).Should(BeTrue())
 }
 
 func deleteJobs(namespace string) {
