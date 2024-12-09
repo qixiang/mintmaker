@@ -136,8 +136,7 @@ func (r *DependencyUpdateCheckReconciler) Reconcile(ctx context.Context, req ctr
 	}
 	dependencyupdatecheck.Annotations[MintMakerProcessedAnnotationName] = "true"
 
-	patch := client.MergeFrom(dependencyupdatecheck.DeepCopy())
-	err = r.Client.Patch(ctx, dependencyupdatecheck, patch)
+	err = r.Client.Update(ctx, dependencyupdatecheck)
 	if err != nil {
 		log.Error(err, "failed to update DependencyUpdateCheck annotations")
 		return ctrl.Result{}, nil
