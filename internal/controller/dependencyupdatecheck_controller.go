@@ -21,8 +21,10 @@ import (
 	"fmt"
 	"time"
 
+	appstudiov1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	mmv1alpha1 "github.com/konflux-ci/mintmaker/api/v1alpha1"
 	. "github.com/konflux-ci/mintmaker/pkg/common"
+	component "github.com/konflux-ci/mintmaker/internal/pkg/component"
 	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -54,12 +56,11 @@ func NewDependencyUpdateCheckReconciler(client client.Client, scheme *runtime.Sc
 }
 
 // createPipelineRun creates and returns a new PipelineRun
-func (r *DependencyUpdateCheckReconciler) createPipelineRun(ctx context.Context) (*tektonv1.PipelineRun, error) {
+func (r *DependencyUpdateCheckReconciler) createPipelineRun(comp component.GitComponent, ctx context.Context) (*tektonv1.PipelineRun, error) {
 
 	log := ctrllog.FromContext(ctx).WithName("DependencyUpdateCheckController")
 	ctx = ctrllog.IntoContext(ctx, log)
-	timestamp := time.Now().Unix()
-	name := fmt.Sprintf("renovate-pipelinerun-%d-%s", timestamp, RandomString(5))
+	name := fmt.Sprintf("renovate-%d-%s-%s", comp.GetTimestamp(), RandomString(8), comp.GetName())
 
 	// Creating the pipelineRun definition
 	pipelineRun := &tektonv1.PipelineRun{
@@ -142,13 +143,54 @@ func (r *DependencyUpdateCheckReconciler) Reconcile(ctx context.Context, req ctr
 		return ctrl.Result{}, nil
 	}
 
-	log.Info("Creating pending PipelineRun")
-	pipelinerun, err := r.createPipelineRun(ctx)
-	if err != nil {
-		log.Error(err, "failed to create PipelineRun")
+	var gatheredComponents []appstudiov1alpha1.Component
+	if len(dependencyupdatecheck.Spec.Workspaces) > 0 {
+		log.Info(fmt.Sprintf("Following components are specified: %v", dependencyupdatecheck.Spec.Workspaces))
+		gatheredComponents, err = getFilteredComponents(dependencyupdatecheck.Spec.Workspaces, r.Client, ctx)
+		if err != nil {
+			log.Error(err, "gathering filtered components has failed")
+			return ctrl.Result{}, err
+		}
 	} else {
-		log.Info(fmt.Sprintf("Created PipelineRun %s", pipelinerun.Name))
+		allComponents := &appstudiov1alpha1.ComponentList{}
+		if err := r.Client.List(ctx, allComponents, &client.ListOptions{}); err != nil {
+			log.Error(err, "failed to list Components")
+			return ctrl.Result{}, err
+		}
+		gatheredComponents = allComponents.Items
 	}
+
+	log.Info(fmt.Sprintf("%d components will be processed", len(gatheredComponents)))
+
+	// Filter out components which have mintmaker disabled
+	componentList := []appstudiov1alpha1.Component{}
+	for _, component := range gatheredComponents {
+		if value, exists := component.Annotations[MintMakerDisabledAnnotationName]; !exists || value != "true" {
+			componentList = append(componentList, component)
+		}
+	}
+
+	log.Info("found components with mintmaker disabled", "components", len(gatheredComponents)-len(componentList))
+	if len(componentList) == 0 {
+		return ctrl.Result{}, nil
+	}
+
+	timestamp := time.Now().UTC().Unix()
+	for _, appstudioComponent := range componentList {
+		comp, err := component.NewGitComponent(&appstudioComponent, timestamp, r.Client, ctx)
+		if err != nil {
+			log.Error(err, fmt.Sprintf("failed to handle component: %s", appstudioComponent.Name))
+			continue
+		}
+		log.Info("creating pending PipelineRun")
+		pipelinerun, err := r.createPipelineRun(comp, ctx)
+		if err != nil {
+			log.Error(err, "failed to create PipelineRun")
+		} else {
+			log.Info(fmt.Sprintf("created PipelineRun %s", pipelinerun.Name))
+		}
+	}
+
 	return ctrl.Result{}, nil
 }
 
