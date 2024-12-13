@@ -23,9 +23,11 @@ import (
 
 	appstudiov1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	mmv1alpha1 "github.com/konflux-ci/mintmaker/api/v1alpha1"
-	. "github.com/konflux-ci/mintmaker/pkg/common"
 	component "github.com/konflux-ci/mintmaker/internal/pkg/component"
+	utils "github.com/konflux-ci/mintmaker/internal/pkg/tekton"
+	. "github.com/konflux-ci/mintmaker/pkg/common"
 	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -55,45 +57,59 @@ func NewDependencyUpdateCheckReconciler(client client.Client, scheme *runtime.Sc
 	}
 }
 
+func (r *DependencyUpdateCheckReconciler) CreateConfigMap(comp component.GitComponent, ctx context.Context, name string) *corev1.ConfigMap {
+	configMapName := fmt.Sprintf("configMap-%s", name)
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      configMapName,
+			Namespace: MintMakerNamespaceName,
+		},
+		Data: map[string]string{
+			"renovate.json": `{ 
+		        "$schema": "https://docs.renovatebot.com/renovate-schema.json"
+		    }`, // TODO: this will be updated in  CWFHEALTH-3874
+		},
+	}
+}
+
+func (r *DependencyUpdateCheckReconciler) CreateSecret(comp component.GitComponent, ctx context.Context, name string) *corev1.Secret {
+	secretName := fmt.Sprintf("secret-%s", name)
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: MintMakerNamespaceName,
+		},
+		Type: corev1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			"renovate_token": []byte("placeholder"), // TODO: this will be updated in CWFHEALTH-3875
+		},
+	}
+}
+
 // createPipelineRun creates and returns a new PipelineRun
 func (r *DependencyUpdateCheckReconciler) createPipelineRun(comp component.GitComponent, ctx context.Context) (*tektonv1.PipelineRun, error) {
 
 	log := ctrllog.FromContext(ctx).WithName("DependencyUpdateCheckController")
 	ctx = ctrllog.IntoContext(ctx, log)
-	name := fmt.Sprintf("renovate-%d-%s-%s", comp.GetTimestamp(), RandomString(8), comp.GetName())
+	name := fmt.Sprintf("renovate-%d-%s-%s-%s", comp.GetTimestamp(), RandomString(8), comp.GetApplication(), comp.GetName())
+
+	r.CreateConfigMap(comp, ctx, name)
+	r.CreateSecret(comp, ctx, name)
 
 	// Creating the pipelineRun definition
-	pipelineRun := &tektonv1.PipelineRun{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: MintMakerNamespaceName,
-		},
-		Spec: tektonv1.PipelineRunSpec{
-			Status: tektonv1.PipelineRunSpecStatusPending,
-			PipelineSpec: &tektonv1.PipelineSpec{
-				Tasks: []tektonv1.PipelineTask{
-					{
-						Name: "build",
-						TaskSpec: &tektonv1.EmbeddedTask{
-							TaskSpec: tektonv1.TaskSpec{
-								Steps: []tektonv1.Step{
-									{
-										Name:  "renovate",
-										Image: DefaultRenovateImageUrl,
-										Script: `
-	                                    echo "Running Renovate"
-	                                    sleep 10
-	                                `,
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
+	pipelineRun, err := utils.NewPipelineRunBuilder(name, MintMakerNamespaceName).
+		WithLabels(map[string]string{
+			"application": comp.GetApplication(),
+			"component":   comp.GetName(),
+			"gitPlatform": comp.GetPlatform(), // (github, gitlab)
+			"gitHost":     comp.GetHost(),     // github.com, gitlab.com, gitlab.other.com
+			"gitRepoUrl":  comp.GetGitURL(),
+		}).
+		Build()
+	if err != nil {
+		log.Error(err, "failed to build pipeline definition")
+		return nil, err
 	}
-
 	if err := r.Client.Create(ctx, pipelineRun); err != nil {
 		return nil, err
 	}

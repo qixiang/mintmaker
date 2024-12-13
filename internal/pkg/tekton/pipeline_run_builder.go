@@ -23,6 +23,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	libhandler "github.com/operator-framework/operator-lib/handler"
 	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -36,6 +37,8 @@ type PipelineRunBuilder struct {
 // NewPipelineRunBuilder initializes a new PipelineRunBuilder with the given name prefix and namespace.
 // It sets the name of the PipelineRun to be generated with the provided prefix and sets its namespace.
 func NewPipelineRunBuilder(name, namespace string) *PipelineRunBuilder {
+	configMapName := fmt.Sprintf("configMap-%s", name)
+	secretName := fmt.Sprintf("secret-%s", name)
 	return &PipelineRunBuilder{
 		pipelineRun: &tektonv1.PipelineRun{
 			ObjectMeta: metav1.ObjectMeta{
@@ -58,6 +61,33 @@ func NewPipelineRunBuilder(name, namespace string) *PipelineRunBuilder {
 	        	                            echo "Running Renovate"
 	        	                            sleep 10
 	        	                        `,
+											// Mounting the ConfigMap as a volume
+											VolumeMounts: []corev1.VolumeMount{
+												{
+													Name:      "secret-volume",
+													MountPath: "/etc/secret",
+													ReadOnly:  true,
+												},
+												{
+													Name:      "configmap-volume",
+													MountPath: "/etc/config",
+													ReadOnly:  true,
+												},
+											},
+										},
+									},
+									// Mounting the Secret and the ConfigMap as a volume
+									Volumes: []corev1.Volume{
+										{
+											Name: "configmap-and-secret-volume",
+											VolumeSource: corev1.VolumeSource{
+												ConfigMap: &corev1.ConfigMapVolumeSource{
+													LocalObjectReference: corev1.LocalObjectReference{Name: configMapName},
+												},
+												Secret: &corev1.SecretVolumeSource{
+													SecretName: secretName,
+												},
+											},
 										},
 									},
 								},
