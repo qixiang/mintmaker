@@ -33,6 +33,13 @@ spec:
     metadata:
       annotations:
         kubectl.kubernetes.io/default-container: manager
+        # We store the Renovate image reference in this annotation to leverage Kustomize's
+        # built-in "images" transformer. Kustomize's "images" feature works natively with
+        # image references (e.g., container images in spec.containers[].image), but it does
+        # not support updating env variables directly, unless we write a new transformer
+        # plugin. By storing the image reference here, we can dynamically update it with
+        # Kustomize, and the container can access it using 'env[].valueFrom.fieldRef.fieldPath'.
+        mintmaker.appstudio.redhat.com/renovate-image: quay.io/konflux-ci/mintmaker-renovate-image:latest
       labels:
         control-plane: controller-manager
     spec:
@@ -72,6 +79,11 @@ spec:
         - --leader-elect
         image: controller:latest
         name: manager
+        env:
+        - name: RENOVATE_IMAGE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['mintmaker.appstudio.redhat.com/renovate-image']
         securityContext:
           allowPrivilegeEscalation: false
           capabilities:
