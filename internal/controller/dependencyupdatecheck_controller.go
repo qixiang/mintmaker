@@ -23,9 +23,11 @@ import (
 
 	appstudiov1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	mmv1alpha1 "github.com/konflux-ci/mintmaker/api/v1alpha1"
-	. "github.com/konflux-ci/mintmaker/pkg/common"
 	component "github.com/konflux-ci/mintmaker/internal/pkg/component"
+	utils "github.com/konflux-ci/mintmaker/internal/pkg/tekton"
+	. "github.com/konflux-ci/mintmaker/pkg/common"
 	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -62,42 +64,78 @@ func (r *DependencyUpdateCheckReconciler) createPipelineRun(comp component.GitCo
 	ctx = ctrllog.IntoContext(ctx, log)
 	name := fmt.Sprintf("renovate-%d-%s-%s", comp.GetTimestamp(), RandomString(8), comp.GetName())
 
-	// Creating the pipelineRun definition
-	pipelineRun := &tektonv1.PipelineRun{
+	// Create ConfigMap for Renovate global configuration
+	renovateConfigMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: MintMakerNamespaceName,
 		},
-		Spec: tektonv1.PipelineRunSpec{
-			Status: tektonv1.PipelineRunSpecStatusPending,
-			PipelineSpec: &tektonv1.PipelineSpec{
-				Tasks: []tektonv1.PipelineTask{
-					{
-						Name: "build",
-						TaskSpec: &tektonv1.EmbeddedTask{
-							TaskSpec: tektonv1.TaskSpec{
-								Steps: []tektonv1.Step{
-									{
-										Name:  "renovate",
-										Image: DefaultRenovateImageUrl,
-										Script: `
-	                                    echo "Running Renovate"
-	                                    sleep 10
-	                                `,
-									},
-								},
-							},
-						},
-					},
-				},
-			},
+		// TODO: replace renovate.json with Comp.GetRenovateConfig() (to be implemented)
+		Data: map[string]string{
+			"renovate.json": `{"$schema": "https://docs.renovatebot.com/renovate-schema.json"}`,
 		},
 	}
 
+	if err := r.Client.Create(ctx, renovateConfigMap); err != nil {
+		return nil, err
+	}
+
+	// Create Secret for Renovate token (the repository access token)
+	renovateToken, err := comp.GetToken()
+	if err != nil {
+		return nil, err
+	}
+	renovateSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: MintMakerNamespaceName,
+		},
+		Type: corev1.SecretTypeOpaque,
+		StringData: map[string]string{
+			"renovate-token": renovateToken,
+		},
+	}
+
+	if err := r.Client.Create(ctx, renovateSecret); err != nil {
+		return nil, err
+	}
+
+	// Creating the pipelineRun definition
+	builder := utils.NewPipelineRunBuilder(name, MintMakerNamespaceName).
+		WithLabels(map[string]string{
+			"mintmaker.appstudio.redhat.com/application":  comp.GetApplication(),
+			"mintmaker.appstudio.redhat.com/component":    comp.GetName(),
+			"mintmaker.appstudio.redhat.com/git-platform": comp.GetPlatform(), // (github, gitlab)
+			"mintmaker.appstudio.redhat.com/git-host":     comp.GetHost(),     // github.com, gitlab.com, gitlab.other.com
+		})
+
+	cmItems := []corev1.KeyToPath{
+		{
+			Key:  "renovate.json",
+			Path: "renovate.json",
+		},
+	}
+	cmOpts := utils.NewMountOptions().WithTaskName("build").WithStepNames([]string{"renovate"})
+	builder.WithConfigMap(name, "/etc/renovate/config", cmItems, cmOpts)
+	secretItems := []corev1.KeyToPath{
+		{
+			Key:  "renovate-token",
+			Path: "renovate-token",
+		},
+	}
+	secretOpts := utils.NewMountOptions().WithTaskName("build").WithStepNames([]string{"renovate"})
+	builder.WithSecret(name, "/etc/renovate/secret", secretItems, secretOpts)
+
+	pipelineRun, err := builder.Build()
+	if err != nil {
+		log.Error(err, "failed to build pipeline definition")
+		return nil, err
+	}
 	if err := r.Client.Create(ctx, pipelineRun); err != nil {
 		return nil, err
 	}
 
+	// TODO: set ownerReferences for renovateConfigMap and renovateSecret
 	return pipelineRun, nil
 }
 
