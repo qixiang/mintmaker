@@ -21,10 +21,10 @@ import (
 	"unicode"
 
 	"github.com/hashicorp/go-multierror"
-	libhandler "github.com/operator-framework/operator-lib/handler"
 	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/strings/slices"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -34,11 +34,62 @@ type PipelineRunBuilder struct {
 	pipelineRun *tektonv1.PipelineRun
 }
 
+type MountOptions struct {
+	// Which task to mount to. If empty, defaults to xxx (e.g., "renovate")
+	TaskName string
+	// Which steps to mount to. If empty, mounts to all steps
+	StepNames []string
+	// If the mount should be read-only. Default is true
+	ReadOnly *bool
+	// The permission mode for the mounted files
+	DefaultMode *int32
+	// Optional specifies whether the ConfigMap/Secret must exist
+	Optional *bool
+}
+
+// NewMountOptions creates a new MountOptions with default values
+func NewMountOptions() *MountOptions {
+	readOnly := true
+	defaultMode := int32(0644)
+	optional := false
+
+	return &MountOptions{
+		TaskName:    "build",
+		StepNames:   []string{},
+		ReadOnly:    &readOnly,
+		DefaultMode: &defaultMode,
+		Optional:    &optional,
+	}
+}
+
+func (o *MountOptions) WithTaskName(taskName string) *MountOptions {
+	o.TaskName = taskName
+	return o
+}
+
+func (o *MountOptions) WithStepNames(stepNames []string) *MountOptions {
+	o.StepNames = stepNames
+	return o
+}
+
+func (o *MountOptions) WithReadOnly(readOnly bool) *MountOptions {
+	o.ReadOnly = &readOnly
+	return o
+}
+
+func (o *MountOptions) WithDefaultMode(mode int32) *MountOptions {
+	o.DefaultMode = &mode
+	return o
+}
+
+func (o *MountOptions) WithOptional(optional bool) *MountOptions {
+	o.Optional = &optional
+	return o
+}
+
 // NewPipelineRunBuilder initializes a new PipelineRunBuilder with the given name prefix and namespace.
 // It sets the name of the PipelineRun to be generated with the provided prefix and sets its namespace.
 func NewPipelineRunBuilder(name, namespace string) *PipelineRunBuilder {
-	configMapName := fmt.Sprintf("configMap-%s", name)
-	secretName := fmt.Sprintf("secret-%s", name)
 	return &PipelineRunBuilder{
 		pipelineRun: &tektonv1.PipelineRun{
 			ObjectMeta: metav1.ObjectMeta{
@@ -55,39 +106,10 @@ func NewPipelineRunBuilder(name, namespace string) *PipelineRunBuilder {
 								TaskSpec: tektonv1.TaskSpec{
 									Steps: []tektonv1.Step{
 										{
-											Name:  "renovate",
-											Image: "TODO: changeme",
-											Script: `
-	        	                            echo "Running Renovate"
-	        	                            sleep 10
-	        	                        `,
-											// Mounting the ConfigMap as a volume
-											VolumeMounts: []corev1.VolumeMount{
-												{
-													Name:      "secret-volume",
-													MountPath: "/etc/secret",
-													ReadOnly:  true,
-												},
-												{
-													Name:      "configmap-volume",
-													MountPath: "/etc/config",
-													ReadOnly:  true,
-												},
-											},
-										},
-									},
-									// Mounting the Secret and the ConfigMap as a volume
-									Volumes: []corev1.Volume{
-										{
-											Name: "configmap-and-secret-volume",
-											VolumeSource: corev1.VolumeSource{
-												ConfigMap: &corev1.ConfigMapVolumeSource{
-													LocalObjectReference: corev1.LocalObjectReference{Name: configMapName},
-												},
-												Secret: &corev1.SecretVolumeSource{
-													SecretName: secretName,
-												},
-											},
+											Name: "renovate",
+											// TODO: just for testing, change image
+											Image:  "registry.access.redhat.com/ubi9-minimal@sha256:f598528219a1be07cf520fbe82a2d2434dc9841e1f0a878382c8a13bf42cb486",
+											Script: `echo "Running Renovate"; sleep 10`,
 										},
 									},
 								},
@@ -135,6 +157,122 @@ func (b *PipelineRunBuilder) WithLabels(labels map[string]string) *PipelineRunBu
 	return b
 }
 
+// Mounts a ConfigMap to the specified task and steps.
+// - name: ConfigMap name
+// - mountPath: where the ConfigMap should be mounted to
+// - items: items from ConfigMap to be mounted. If nil, all items will be mounted
+// - opts: mount options
+func (b *PipelineRunBuilder) WithConfigMap(name, mountPath string, items []corev1.KeyToPath, opts *MountOptions) *PipelineRunBuilder {
+	if opts == nil {
+		opts = &MountOptions{}
+	}
+	if opts.TaskName == "" {
+		opts.TaskName = "build"
+	}
+	if opts.ReadOnly == nil {
+		readOnly := true
+		opts.ReadOnly = &readOnly
+	}
+
+	for i, task := range b.pipelineRun.Spec.PipelineSpec.Tasks {
+		// Add volume when task matches
+		if task.Name == opts.TaskName && task.TaskSpec != nil {
+			volumeName := fmt.Sprintf("configmap-%s", name)
+			volume := corev1.Volume{
+				Name: volumeName,
+				VolumeSource: corev1.VolumeSource{
+					ConfigMap: &corev1.ConfigMapVolumeSource{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: name,
+						},
+						Items:       items,
+						Optional:    opts.Optional,
+						DefaultMode: opts.DefaultMode,
+					},
+				},
+			}
+			b.pipelineRun.Spec.PipelineSpec.Tasks[i].TaskSpec.TaskSpec.Volumes = append(
+				b.pipelineRun.Spec.PipelineSpec.Tasks[i].TaskSpec.TaskSpec.Volumes,
+				volume,
+			)
+
+			// Add volume mount to specified steps or all steps
+			volumeMount := corev1.VolumeMount{
+				Name:      volumeName,
+				MountPath: mountPath,
+				ReadOnly:  *opts.ReadOnly,
+			}
+
+			for j := range b.pipelineRun.Spec.PipelineSpec.Tasks[i].TaskSpec.TaskSpec.Steps {
+				step := &b.pipelineRun.Spec.PipelineSpec.Tasks[i].TaskSpec.TaskSpec.Steps[j]
+				if len(opts.StepNames) == 0 || slices.Contains(opts.StepNames, step.Name) {
+					step.VolumeMounts = append(step.VolumeMounts, volumeMount)
+				}
+			}
+			break
+		}
+	}
+	// TODO: error when the specified task is not found
+	return b
+}
+
+// Mounts a Secret to the specified task and steps.
+// - name: Secret name
+// - mountPath: where the Secret should be mounted to
+// - items: items from Secret to be mounted. If nil, all items will be mounted
+// - opts: mount options
+func (b *PipelineRunBuilder) WithSecret(name, mountPath string, items []corev1.KeyToPath, opts *MountOptions) *PipelineRunBuilder {
+	if opts == nil {
+		opts = &MountOptions{}
+	}
+	if opts.TaskName == "" {
+		opts.TaskName = "build"
+	}
+	if opts.ReadOnly == nil {
+		readOnly := true
+		opts.ReadOnly = &readOnly
+	}
+
+	// Find the specified task
+	for i, task := range b.pipelineRun.Spec.PipelineSpec.Tasks {
+		if task.Name == opts.TaskName && task.TaskSpec != nil {
+			volumeName := fmt.Sprintf("secret-%s", name)
+			volume := corev1.Volume{
+				Name: volumeName,
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName:  name,
+						Items:       items,
+						Optional:    opts.Optional,
+						DefaultMode: opts.DefaultMode,
+					},
+				},
+			}
+			b.pipelineRun.Spec.PipelineSpec.Tasks[i].TaskSpec.TaskSpec.Volumes = append(
+				b.pipelineRun.Spec.PipelineSpec.Tasks[i].TaskSpec.TaskSpec.Volumes,
+				volume,
+			)
+
+			// Add volume mount to specified steps or all steps
+			volumeMount := corev1.VolumeMount{
+				Name:      volumeName,
+				MountPath: mountPath,
+				ReadOnly:  *opts.ReadOnly,
+			}
+
+			for j := range b.pipelineRun.Spec.PipelineSpec.Tasks[i].TaskSpec.TaskSpec.Steps {
+				step := &b.pipelineRun.Spec.PipelineSpec.Tasks[i].TaskSpec.TaskSpec.Steps[j]
+				if len(opts.StepNames) == 0 || slices.Contains(opts.StepNames, step.Name) {
+					step.VolumeMounts = append(step.VolumeMounts, volumeMount)
+				}
+			}
+			break
+		}
+	}
+	// TODO: error when the specified task is not found
+	return b
+}
+
 // WithObjectReferences constructs tektonv1.Param entries for each of the provided client.Objects.
 // Each param name is derived from the object's Kind (with the first letter made lowercase) and
 // the value is a combination of the object's Namespace and Name.
@@ -178,16 +316,6 @@ func (b *PipelineRunBuilder) WithObjectSpecsAsJson(objects ...client.Object) *Pi
 				StringVal: string(jsonData),
 			},
 		})
-	}
-	return b
-}
-
-// WithOwner sets the given client.Object as the owner of the PipelineRun.
-// It also adds the ReleaseFinalizer to the PipelineRun.
-func (b *PipelineRunBuilder) WithOwner(object client.Object) *PipelineRunBuilder {
-	if err := libhandler.SetOwnerAnnotations(object, b.pipelineRun); err != nil {
-		b.err = multierror.Append(b.err, fmt.Errorf("failed to set owner annotations: %v", err))
-		return b
 	}
 	return b
 }
