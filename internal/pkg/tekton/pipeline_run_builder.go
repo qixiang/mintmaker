@@ -17,6 +17,7 @@ package tekton
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 	"reflect"
 	"unicode"
 
@@ -98,6 +99,11 @@ func NewPipelineRunBuilder(name, namespace string) *PipelineRunBuilder {
 			},
 			Spec: tektonv1.PipelineRunSpec{
 				Status: tektonv1.PipelineRunSpecStatusPending,
+				Timeouts: &tektonv1.TimeoutFields{
+					Pipeline: &metav1.Duration{Duration: 10 * time.Second}, // 10 seconds for entire pipeline
+					//Tasks:    &metav1.Duration{Duration: 30 * time.Second},  // 5 seconds per task (optional)
+					//Finally:  &metav1.Duration{Duration: 30 * time.Second},  // 5 seconds for finally tasks (optional)
+				},
 				PipelineSpec: &tektonv1.PipelineSpec{
 					Tasks: []tektonv1.PipelineTask{
 						{
@@ -109,7 +115,7 @@ func NewPipelineRunBuilder(name, namespace string) *PipelineRunBuilder {
 											Name: "renovate",
 											// TODO: use default, or get from ENV
 											Image:  "quay.io/konflux-ci/mintmaker-renovate-image:latest",
-											Script: `echo "Running Renovate"; sleep 10`,
+											Script: `echo "Running Renovate"; sleep 20; exit 1`,
 										},
 									},
 								},

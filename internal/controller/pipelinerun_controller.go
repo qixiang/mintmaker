@@ -23,6 +23,7 @@ import (
 	. "github.com/konflux-ci/mintmaker/pkg/common"
 	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"knative.dev/pkg/apis"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -54,6 +55,10 @@ func (r *PipelineRunReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	log.Info(fmt.Sprintf("PipelineRun is updated: %v", req.NamespacedName))
+	pipelineRun := &tektonv1.PipelineRun{}
+	if err := r.Get(ctx, req.NamespacedName, pipelineRun); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -67,9 +72,22 @@ func (r *PipelineRunReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		and one of these events will have to return true, and the reconcile can be stuff
 		based on the event */
 		WithEventFilter(predicate.Funcs{
-			CreateFunc:  func(createEvent event.CreateEvent) bool { return false },
-			DeleteFunc:  func(deleteEvent event.DeleteEvent) bool { return false },
-			UpdateFunc:  func(updateEvent event.UpdateEvent) bool { return true },
+			CreateFunc: func(createEvent event.CreateEvent) bool {
+				if pipelineRun, ok := createEvent.Object.(*tektonv1.PipelineRun); ok {
+					return pipelineRun.Spec.Status == tektonv1.PipelineRunSpecStatusPending
+				}
+				return false
+			},
+			DeleteFunc: func(deleteEvent event.DeleteEvent) bool { return false },
+			//UpdateFunc:  func(updateEvent event.UpdateEvent) bool { return true },
+			UpdateFunc: func(updateEvent event.UpdateEvent) bool {
+				if oldPipelineRun, ok := updateEvent.ObjectOld.(*tektonv1.PipelineRun); ok {
+					if newPipelineRun, ok := updateEvent.ObjectNew.(*tektonv1.PipelineRun); ok {
+						return oldPipelineRun.Status.GetCondition(apis.ConditionSucceeded).IsUnknown() && !newPipelineRun.Status.GetCondition(apis.ConditionSucceeded).IsUnknown()
+					}
+				}
+				return false
+			},
 			GenericFunc: func(genericEvent event.GenericEvent) bool { return false },
 		}).
 		Complete(r)
