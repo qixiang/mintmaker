@@ -57,6 +57,29 @@ func NewDependencyUpdateCheckReconciler(client client.Client, scheme *runtime.Sc
 	}
 }
 
+// getCAConfigMap returns the first ConfigMap found in mintmaker namespace
+// that has the label 'config.openshift.io/inject-trusted-cabundle: "true"'.
+// If no such ConfigMap is found, it returns nil.
+func (r *DependencyUpdateCheckReconciler) getCAConfigMap(ctx context.Context) (*corev1.ConfigMap, error) {
+	configMapList := &corev1.ConfigMapList{}
+	labelSelector := client.MatchingLabels{"config.openshift.io/inject-trusted-cabundle": "true"}
+	listOptions := []client.ListOption{
+		client.InNamespace(MintMakerNamespaceName),
+		labelSelector,
+	}
+	err := r.Client.List(ctx, configMapList, listOptions...)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(configMapList.Items) > 0 {
+		// Just return the configmap
+		return &configMapList.Items[0], nil
+	}
+
+	return nil, nil
+}
+
 // createPipelineRun creates and returns a new PipelineRun
 func (r *DependencyUpdateCheckReconciler) createPipelineRun(comp component.GitComponent, ctx context.Context) (*tektonv1.PipelineRun, error) {
 
@@ -117,6 +140,7 @@ func (r *DependencyUpdateCheckReconciler) createPipelineRun(comp component.GitCo
 	}
 	cmOpts := utils.NewMountOptions().WithTaskName("build").WithStepNames([]string{"renovate"})
 	builder.WithConfigMap(name, "/etc/renovate/config", cmItems, cmOpts)
+
 	secretItems := []corev1.KeyToPath{
 		{
 			Key:  "renovate-token",
@@ -125,6 +149,24 @@ func (r *DependencyUpdateCheckReconciler) createPipelineRun(comp component.GitCo
 	}
 	secretOpts := utils.NewMountOptions().WithTaskName("build").WithStepNames([]string{"renovate"})
 	builder.WithSecret(name, "/etc/renovate/secret", secretItems, secretOpts)
+
+	// Check if a ConfigMap with the label `config.openshift.io/inject-trusted-cabundle: "true"` exists.
+	// If such a ConfigMap is found, add a volume to the PipelineRun specification to mount this ConfigMap.
+	// The volume will be mounted at '/etc/pki/ca-trust/extracted/pem' within the PipelineRun Pod.
+	caConfigMap, err := r.getCAConfigMap(ctx)
+	if err != nil {
+		log.Error(err, "Failed to get CAConfigMap - moving on")
+	}
+	if caConfigMap != nil {
+		caConfigMapItems := []corev1.KeyToPath{
+			{
+				Key:  "ca-bundle.crt",
+				Path: "tls-ca-bundle.pem",
+			},
+		}
+		caConfigMapOpts := utils.NewMountOptions().WithTaskName("build").WithStepNames([]string{"renovate"}).WithReadOnly(true)
+		builder.WithConfigMap("trusted-ca", "/etc/pki/ca-trust/extracted/pem", caConfigMapItems, caConfigMapOpts)
+	}
 
 	pipelineRun, err := builder.Build()
 	if err != nil {

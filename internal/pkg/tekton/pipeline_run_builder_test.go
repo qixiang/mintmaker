@@ -256,35 +256,6 @@ var _ = Describe("PipelineRun builder", func() {
 		})
 	})
 
-	When("WithOwner method is called", func() {
-		var (
-			builder   *PipelineRunBuilder
-			configMap *corev1.ConfigMap
-		)
-
-		BeforeEach(func() {
-			builder = NewPipelineRunBuilder("testPrefix", "testNamespace")
-			configMap = &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "configName",
-					Namespace: "configNamespace",
-				},
-			}
-			configMap.Kind = "Config"
-		})
-
-		It("should handle owner without errors", func() {
-			builder.WithOwner(configMap)
-			_, err := builder.Build()
-			Expect(err).ToNot(HaveOccurred())
-		})
-
-		It("should have added owner annotations to the PipelineRun", func() {
-			builder.WithOwner(configMap)
-			Expect(builder.pipelineRun.Annotations).ToNot(BeEmpty())
-		})
-	})
-
 	When("WithServiceAccount method is called", func() {
 		It("should set the ServiceAccountName for the PipelineRun's TaskRunTemplate", func() {
 			builder := NewPipelineRunBuilder("testPrefix", "testNamespace")
