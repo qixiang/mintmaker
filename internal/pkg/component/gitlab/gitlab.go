@@ -2,7 +2,10 @@ package gitlab
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
+
 	appstudiov1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	"github.com/konflux-ci/mintmaker/internal/pkg/component/base"
 	bslices "github.com/konflux-ci/mintmaker/internal/pkg/slices"
@@ -10,7 +13,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/strings/slices"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
 )
 
 //TODO: doc about only supporting GitHub with the installed GitHub App
@@ -19,6 +21,11 @@ type Component struct {
 	base.BaseComponent
 	client client.Client
 	ctx    context.Context
+}
+
+type Repository struct {
+	BaseBranches []string
+	Repository   string
 }
 
 func NewComponent(comp *appstudiov1alpha1.Component, timestamp int64, client client.Client, ctx context.Context) (*Component, error) {
@@ -164,4 +171,35 @@ func (c *Component) GetAPIEndpoint() string {
 func (c *Component) getDefaultBranch() (string, error) {
 	// TODO: call github APIs to determine the default branch
 	return "main", nil
+}
+
+func (c *Component) GetRenovateConfig() (string, error) {
+	baseConfig, err := c.GetRenovateBaseConfig(c.client, c.ctx)
+	if err != nil {
+		return "", err
+	}
+
+	baseConfig["platform"] = c.Platform
+	baseConfig["endpoint"] = c.GetAPIEndpoint()
+	// We don't need to set a username or gitAuthor for gitlab, since this is tight to a token
+	baseConfig["username"] = ""
+	baseConfig["gitAuthor"] = ""
+
+	// TODO: perhaps in the future let's validate all these values
+	branch, err := c.GetBranch()
+	if err != nil {
+		return "", err
+	}
+	repo := map[string]interface{}{
+		"baseBranches": []string{branch},
+		"repository":   c.Repository,
+	}
+	baseConfig["repositories"] = []interface{}{repo}
+
+	updatedConfig, err := json.MarshalIndent(baseConfig, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("error marshaling updated Renovate config: %v", err)
+	}
+
+	return string(updatedConfig), nil
 }

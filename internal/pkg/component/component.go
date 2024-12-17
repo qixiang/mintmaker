@@ -3,6 +3,7 @@ package component
 import (
 	"context"
 	"fmt"
+
 	appstudiov1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	github "github.com/konflux-ci/mintmaker/internal/pkg/component/github"
 	gitlab "github.com/konflux-ci/mintmaker/internal/pkg/component/gitlab"
@@ -22,6 +23,7 @@ type GitComponent interface {
 	GetToken() (string, error)
 	GetBranch() (string, error)
 	GetAPIEndpoint() string
+	GetRenovateConfig() (string, error)
 }
 
 func NewGitComponent(comp *appstudiov1alpha1.Component, timestamp int64, client client.Client, ctx context.Context) (GitComponent, error) {

@@ -2,7 +2,13 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+	"sync"
+
 	ghinstallation "github.com/bradleyfalzon/ghinstallation/v2"
 	"github.com/google/go-github/v45/github"
 	appstudiov1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
@@ -10,11 +16,7 @@ import (
 	"github.com/konflux-ci/mintmaker/internal/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"net/http"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strconv"
-	"strings"
-	"sync"
 )
 
 //TODO: doc about only supporting GitHub with the installed GitHub App
@@ -258,4 +260,54 @@ func (c *Component) getDefaultBranch() (string, error) {
 
 func (c *Component) GetAPIEndpoint() string {
 	return fmt.Sprintf("https://api.%s/", c.Host)
+}
+
+func (c *Component) getAppSlug() (string, error) {
+	appID, appPrivateKey, err := getAppIDAndKey(c.client, c.ctx)
+	if err != nil {
+		return "", err
+	}
+	itr, err := ghinstallation.NewAppsTransport(http.DefaultTransport, appID, appPrivateKey)
+	if err != nil {
+		return "", err
+	}
+
+	client := github.NewClient(&http.Client{Transport: itr})
+	app, _, err := client.Apps.Get(context.Background(), "")
+	if err != nil {
+		return "", fmt.Errorf("failed to load GitHub app metadata, %w", err)
+	}
+	slug := app.GetSlug()
+	return slug, nil
+}
+
+func (c *Component) GetRenovateConfig() (string, error) {
+	baseConfig, err := c.GetRenovateBaseConfig(c.client, c.ctx)
+	if err != nil {
+		return "", err
+	}
+	appSlug, err := c.getAppSlug()
+	if err != nil {
+		return "", err
+	}
+	baseConfig["platform"] = c.Platform
+	baseConfig["endpoint"] = c.GetAPIEndpoint()
+	baseConfig["username"] = fmt.Sprintf("%s[bot]", appSlug)
+	baseConfig["gitAuthor"] = fmt.Sprintf("%s <126015336+%s[bot]@users.noreply.github.com>", appSlug, appSlug)
+
+	// TODO: perhaps in the future let's validate all these values
+	branch, err := c.GetBranch()
+	if err != nil {
+		return "", err
+	}
+	repo := map[string]interface{}{
+		"baseBranches": []string{branch},
+		"repository":   c.Repository,
+	}
+	baseConfig["repositories"] = []interface{}{repo}
+	updatedConfig, err := json.MarshalIndent(baseConfig, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return string(updatedConfig), nil
 }
