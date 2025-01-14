@@ -19,12 +19,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strconv"
 	"time"
 
 	appstudiov1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	mmv1alpha1 "github.com/konflux-ci/mintmaker/api/v1alpha1"
-	. "github.com/konflux-ci/mintmaker/internal/pkg/constant"
 	"github.com/konflux-ci/mintmaker/internal/pkg/component"
+	. "github.com/konflux-ci/mintmaker/internal/pkg/constant"
 	"github.com/konflux-ci/mintmaker/internal/pkg/tekton"
 	"github.com/konflux-ci/mintmaker/internal/pkg/utils"
 	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
@@ -227,10 +228,12 @@ func (r *DependencyUpdateCheckReconciler) createPipelineRun(comp component.GitCo
 	// Creating the pipelineRun definition
 	builder := tekton.NewPipelineRunBuilder(name, MintMakerNamespaceName).
 		WithLabels(map[string]string{
-			"mintmaker.appstudio.redhat.com/application":  comp.GetApplication(),
-			"mintmaker.appstudio.redhat.com/component":    comp.GetName(),
-			"mintmaker.appstudio.redhat.com/git-platform": comp.GetPlatform(), // (github, gitlab)
-			"mintmaker.appstudio.redhat.com/git-host":     comp.GetHost(),     // github.com, gitlab.com, gitlab.other.com
+			"mintmaker.appstudio.redhat.com/application":         comp.GetApplication(),
+			"mintmaker.appstudio.redhat.com/component":           comp.GetName(),
+			"mintmaker.appstudio.redhat.com/namespace":           comp.GetNamespace(),
+			"mintmaker.appstudio.redhat.com/git-platform":        comp.GetPlatform(), // (github, gitlab)
+			"mintmaker.appstudio.redhat.com/git-host":            comp.GetHost(),     // github.com, gitlab.com, gitlab.other.com
+			"mintmaker.appstudio.redhat.com/reconcile-timestamp": strconv.FormatInt(comp.GetTimestamp(), 10),
 		})
 	builder.WithServiceAccount("mintmaker-controller-manager")
 

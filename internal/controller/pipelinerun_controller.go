@@ -15,13 +15,18 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"strconv"
 
+	appstudiov1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
+	github "github.com/konflux-ci/mintmaker/internal/pkg/component/github"
 	. "github.com/konflux-ci/mintmaker/internal/pkg/constant"
 	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"knative.dev/pkg/apis"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -31,8 +36,11 @@ import (
 )
 
 var (
-	MaxSimultaneousPipelineRuns = 20
-	MintMakerAppstudioLabel     = "mintmaker.appstudio.redhat.com/platform"
+	MaxSimultaneousPipelineRuns      = 20
+	MintMakerGitPlatformLabel        = "mintmaker.appstudio.redhat.com/git-platform"
+	MintMakerReconcileTimestampLabel = "mintmaker.appstudio.redhat.com/reconcile-timestamp"
+	MintMakerComponentNameLabel      = "mintmaker.appstudio.redhat.com/component"
+	MintMakerComponentNamespaceLabel = "mintmaker.appstudio.redhat.com/namespace"
 )
 
 // Collect pipelineruns with state 'running' or 'started'
@@ -59,7 +67,7 @@ type PipelineRunReconciler struct {
 
 func (r *PipelineRunReconciler) listExistingPipelineRuns(ctx context.Context, req ctrl.Request) (tektonv1.PipelineRunList, error) {
 
-	log := ctrllog.FromContext(ctx).WithName("PipelineRun")
+	log := ctrllog.FromContext(ctx).WithName("PipelineRunController")
 	var existingPipelineRuns tektonv1.PipelineRunList
 
 	err := r.Client.List(ctx, &existingPipelineRuns, client.InNamespace(req.Namespace))
@@ -74,17 +82,112 @@ func filterPipelineRunListWithLabel(pipelineRunList tektonv1.PipelineRunList, la
 	pipelineRuns := []tektonv1.PipelineRun{}
 
 	for _, pipelineRun := range pipelineRunList.Items {
-		if pipelineRun.Labels[MintMakerAppstudioLabel] == label {
+		if pipelineRun.Labels[MintMakerGitPlatformLabel] == label {
 			pipelineRuns = append(pipelineRuns, pipelineRun)
 		}
 	}
 	return tektonv1.PipelineRunList{Items: pipelineRuns}
 }
 
-func (r *PipelineRunReconciler) launchUpToNPipelineRuns(numToLaunch int, existingPipelineRuns tektonv1.PipelineRunList, ctx context.Context) error {
+func (r *PipelineRunReconciler) updatePipelineRunState(
+	pipelineRun tektonv1.PipelineRun, status tektonv1.PipelineRunSpecStatus, errmsg string, ctx context.Context,
+) error {
 
-	log := ctrllog.FromContext(ctx).WithName("PipelineRun")
-	ctx = ctrllog.IntoContext(ctx, log)
+	log := ctrllog.FromContext(ctx).WithName("PipelineRunController")
+
+	originalPipelineRun := pipelineRun.DeepCopy()
+	pipelineRun.Spec.Status = status
+
+	// if pipelinerun is to be cancelled, add string with the reason
+	if status == tektonv1.PipelineRunSpecStatusCancelled {
+		pipelineRun.Status.MarkFailed(string(tektonv1.PipelineRunReasonCancelled), "%s", errmsg)
+	}
+
+	patch := client.MergeFrom(originalPipelineRun)
+	err := r.Client.Patch(ctx, &pipelineRun, patch)
+	if err != nil {
+		log.Error(err, fmt.Sprintf("Unable to update pipelinerun status, pipelinerun: %s", pipelineRun.Name))
+		return err
+	}
+	return nil
+}
+
+func (r *PipelineRunReconciler) startPipelineRun(plr tektonv1.PipelineRun, ctx context.Context) bool {
+
+	log := ctrllog.FromContext(ctx).WithName("PipelineRunController")
+
+	// if not a github pipelinerun, set pipelinerun in motion and do early return
+	if plr.Labels[MintMakerGitPlatformLabel] != "github" {
+		log.Info(fmt.Sprintf("PipelineRun will be started (pending state removed): %s", plr.Name))
+		_ = r.updatePipelineRunState(plr, "", "", ctx)
+		return true
+	}
+
+	// proceed with fetching intermediate steps to check token, in case of a github pipelinerun
+	var err error
+	var component appstudiov1alpha1.Component
+	var ghComponent *github.Component
+
+	defer func() {
+		if err != nil {
+			// log error and cancel pipelinerun
+			log.Error(err, err.Error())
+			_ = r.updatePipelineRunState(plr, tektonv1.PipelineRunSpecStatusCancelled, err.Error(), ctx)
+		}
+	}()
+
+	componentName := plr.Labels[MintMakerComponentNameLabel]
+	componentNamespace := plr.Labels[MintMakerComponentNamespaceLabel]
+	componentKey := types.NamespacedName{Namespace: componentNamespace, Name: componentName}
+	err = r.Client.Get(ctx, componentKey, &component)
+	if err != nil {
+		return false
+	}
+
+	timestamp, err := strconv.ParseInt(plr.Labels[MintMakerReconcileTimestampLabel], 10, 64)
+	if err != nil {
+		return false
+	}
+
+	ghComponent, err = github.NewComponent(&component, timestamp, r.Client, ctx)
+	if err != nil {
+		return false
+	}
+
+	// GetToken returns the most current token to be used; it automatically
+	// renews and returns the new token, in case the old token got old
+	token, err := (*ghComponent).GetToken()
+	if err != nil {
+		return false
+	}
+
+	tokenBString := []byte(token)
+	appSecret := corev1.Secret{}
+	appSecretKey := types.NamespacedName{Namespace: "mintmaker", Name: plr.Name}
+	err = r.Client.Get(ctx, appSecretKey, &appSecret)
+	if err != nil {
+		return false
+	}
+
+	// update the token in the secret, in case it was renewed by GetToken
+	if !bytes.Equal(appSecret.Data["renovate-token"], tokenBString) {
+		originalAppSecret := appSecret.DeepCopy()
+		appSecret.Data["renovate-token"] = tokenBString
+
+		secretPatch := client.MergeFrom(originalAppSecret)
+		err = r.Client.Patch(ctx, &appSecret, secretPatch)
+		if err != nil {
+			return false
+		}
+	}
+
+	// log sucess and set pipelinerun in motion
+	log.Info(fmt.Sprintf("PipelineRun will be started (pending state removed): %s", plr.Name))
+	_ = r.updatePipelineRunState(plr, "", "", ctx)
+	return true
+}
+
+func (r *PipelineRunReconciler) launchUpToNPipelineRuns(numToLaunch int, existingPipelineRuns tektonv1.PipelineRunList, ctx context.Context) error {
 
 	if numToLaunch <= 0 {
 		return nil
@@ -92,27 +195,20 @@ func (r *PipelineRunReconciler) launchUpToNPipelineRuns(numToLaunch int, existin
 	numLaunched := 0
 	for _, pipelineRun := range existingPipelineRuns.Items {
 		if pipelineRun.IsPending() {
-			original := pipelineRun.DeepCopy()
-			pipelineRun.Spec.Status = ""
-			patch := client.MergeFrom(original)
-			err := r.Client.Patch(ctx, &pipelineRun, patch)
-			if err != nil {
-				log.Error(err, "Unable to update pipelinerun status")
-				return err
+			success := r.startPipelineRun(pipelineRun, ctx)
+			if success {
+				numLaunched += 1
 			}
-			log.Info(fmt.Sprintf("PipelineRun is updated (pending state removed): %s", pipelineRun.Name))
-			numLaunched += 1
 			if numLaunched == numToLaunch {
 				break
 			}
 		}
 	}
-
 	return nil
 }
 
 func (r *PipelineRunReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := ctrllog.FromContext(ctx).WithName("PipelineRun")
+	log := ctrllog.FromContext(ctx).WithName("PipelineRunController")
 	ctx = ctrllog.IntoContext(ctx, log)
 
 	if req.Namespace != MintMakerNamespaceName {
