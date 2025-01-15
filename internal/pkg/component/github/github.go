@@ -14,6 +14,7 @@ import (
 	appstudiov1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	"github.com/konflux-ci/mintmaker/internal/pkg/component/base"
 	"github.com/konflux-ci/mintmaker/internal/pkg/utils"
+	"golang.org/x/oauth2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -254,8 +255,34 @@ func (c *Component) getAppInstallations() ([]AppInstallation, error) {
 }
 
 func (c *Component) getDefaultBranch() (string, error) {
-	// TODO: call github APIs to determine the default branch
-	return "main", nil
+	token, err := c.GetToken()
+	if err != nil {
+		return "", fmt.Errorf("failed to get GitHub token: %w", err)
+	}
+
+	ts := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: token},
+	)
+	tc := oauth2.NewClient(context.Background(), ts)
+	client := github.NewClient(tc)
+
+	parts := strings.Split(c.Repository, "/")
+	if len(parts) != 2 {
+		return "", fmt.Errorf("invalid repository format: %s", c.Repository)
+	}
+	owner := parts[0]
+	repo := parts[1]
+
+	repository, _, err := client.Repositories.Get(context.Background(), owner, repo)
+	if err != nil {
+		return "", fmt.Errorf("failed to get repository information: %w", err)
+	}
+
+	if repository.DefaultBranch == nil {
+		return "", fmt.Errorf("repository default branch is nil")
+	}
+
+	return *repository.DefaultBranch, nil
 }
 
 func (c *Component) GetAPIEndpoint() string {
