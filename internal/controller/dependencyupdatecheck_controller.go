@@ -234,6 +234,7 @@ func (r *DependencyUpdateCheckReconciler) createPipelineRun(comp component.GitCo
 	}
 	cmOpts := utils.NewMountOptions().WithTaskName("build").WithStepNames([]string{"renovate"})
 	builder.WithConfigMap(name, "/etc/renovate/config", cmItems, cmOpts)
+	builder.WithServiceAccount("mintmaker-controller-manager")
 
 	secretItems := []corev1.KeyToPath{
 		{
@@ -259,7 +260,7 @@ func (r *DependencyUpdateCheckReconciler) createPipelineRun(comp component.GitCo
 			},
 		}
 		caConfigMapOpts := utils.NewMountOptions().WithTaskName("build").WithStepNames([]string{"renovate"}).WithReadOnly(true)
-		builder.WithConfigMap("trusted-ca", "/etc/pki/ca-trust/extracted/pem", caConfigMapItems, caConfigMapOpts)
+		builder.WithConfigMap(caConfigMap.ObjectMeta.Name, "/etc/pki/ca-trust/extracted/pem", caConfigMapItems, caConfigMapOpts)
 	}
 
 	if registry_secret != nil {
@@ -346,10 +347,10 @@ func (r *DependencyUpdateCheckReconciler) Reconcile(ctx context.Context, req ctr
 	}
 
 	// If the DependencyUpdateCheck has been handled before, skip it
-	if value, exists := dependencyupdatecheck.Annotations[MintMakerProcessedAnnotationName]; exists && value == "true" {
-		log.Info(fmt.Sprintf("DependencyUpdateCheck has been processed: %v", req.NamespacedName))
-		return ctrl.Result{}, nil
-	}
+	// if value, exists := dependencyupdatecheck.Annotations[MintMakerProcessedAnnotationName]; exists && value == "true" {
+	// 	log.Info(fmt.Sprintf("DependencyUpdateCheck has been processed: %v", req.NamespacedName))
+	// 	return ctrl.Result{}, nil
+	// }
 
 	// Update the DependencyUpdateCheck to add a processed annotation
 	log.Info(fmt.Sprintf("new DependencyUpdateCheck found: %v", req.NamespacedName))
