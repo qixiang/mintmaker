@@ -12,18 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package constant
 
-import (
-	"flag"
+const (
+	// The namespace name where mintmaker is running
+	MintMakerNamespaceName = "mintmaker"
+	// Mintmaker will add processed annotation when the dependencyupdatecheck is processed by controller
+	MintMakerProcessedAnnotationName = "mintmaker.appstudio.redhat.com/processed"
+	// Mintmaker can be disabled by disabled annotation in component
+	MintMakerDisabledAnnotationName = "mintmaker.appstudio.redhat.com/disabled"
 
-	osv_generator "github.com/konflux-ci/mintmaker/tools/osv-generator"
+	RenovateImageEnvName    = "RENOVATE_IMAGE"
+	DefaultRenovateImageURL = "quay.io/konflux-ci/mintmaker-renovate-image:latest"
 )
-
-// A demo which parses RPM CVE data created in the last 24 hours into OSV database format
-func main() {
-	filename := flag.String("filename", "redhat.nedb", "Output filename for OSV database")
-	flag.Parse()
-
-	osv_generator.GenerateOSV(*filename)
-}
