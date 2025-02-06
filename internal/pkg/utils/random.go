@@ -12,24 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package github
+package utils
 
 import (
-	"sync"
+	"crypto/rand"
+	"encoding/hex"
 )
 
-type Cache struct {
-	data sync.Map
-}
-
-func NewCache() *Cache {
-	return &Cache{}
-}
-
-func (c *Cache) Get(key string) (interface{}, bool) {
-	return c.data.Load(key)
-}
-
-func (c *Cache) Set(key string, value interface{}) {
-	c.data.Store(key, value)
+func RandomString(length int) string {
+	bytes := make([]byte, length/2+1)
+	if _, err := rand.Read(bytes); err != nil {
+		panic("Failed to read from random generator")
+	}
+	return hex.EncodeToString(bytes)[0:length]
 }
