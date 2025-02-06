@@ -17,10 +17,12 @@ package tekton
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"reflect"
 	"unicode"
 
 	"github.com/hashicorp/go-multierror"
+	. "github.com/konflux-ci/mintmaker/internal/pkg/common"
 	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -92,6 +94,10 @@ func (o *MountOptions) WithOptional(optional bool) *MountOptions {
 // NewPipelineRunBuilder initializes a new PipelineRunBuilder with the given name prefix and namespace.
 // It sets the name of the PipelineRun to be generated with the provided prefix and sets its namespace.
 func NewPipelineRunBuilder(name, namespace string) *PipelineRunBuilder {
+	renovateImageURL := os.Getenv(RenovateImageEnvName)
+	if renovateImageURL == "" {
+		renovateImageURL = DefaultRenovateImageURL
+	}
 	return &PipelineRunBuilder{
 		pipelineRun: &tektonv1.PipelineRun{
 			ObjectMeta: metav1.ObjectMeta{
@@ -109,7 +115,7 @@ func NewPipelineRunBuilder(name, namespace string) *PipelineRunBuilder {
 									Steps: []tektonv1.Step{
 										{
 											Name:   "renovate",
-											Image:  "quay.io/konflux-ci/mintmaker-renovate-image:latest",
+											Image:  renovateImageURL,
 											Script: `RENOVATE_TOKEN=$(cat /etc/renovate/secret/renovate-token) RENOVATE_CONFIG_FILE=/etc/renovate/config/renovate.json renovate`,
 											SecurityContext: &corev1.SecurityContext{
 												Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
