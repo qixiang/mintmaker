@@ -12,24 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package github
+package constant
 
-import (
-	"sync"
+const (
+	// The namespace name where mintmaker is running
+	MintMakerNamespaceName = "mintmaker"
+	// Mintmaker will add processed annotation when the dependencyupdatecheck is processed by controller
+	MintMakerProcessedAnnotationName = "mintmaker.appstudio.redhat.com/processed"
+	// Mintmaker can be disabled by disabled annotation in component
+	MintMakerDisabledAnnotationName = "mintmaker.appstudio.redhat.com/disabled"
+
+	RenovateImageEnvName    = "RENOVATE_IMAGE"
+	DefaultRenovateImageURL = "quay.io/konflux-ci/mintmaker-renovate-image:latest"
 )
-
-type Cache struct {
-	data sync.Map
-}
-
-func NewCache() *Cache {
-	return &Cache{}
-}
-
-func (c *Cache) Get(key string) (interface{}, bool) {
-	return c.data.Load(key)
-}
-
-func (c *Cache) Set(key string, value interface{}) {
-	c.data.Store(key, value)
-}
