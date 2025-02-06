@@ -13,6 +13,7 @@
   "inheritConfig": true,
   "platformCommit": "enabled",
   "autodiscover": false,
+  "pruneStaleBranches": false,
   "customEnvVariables": {
     "GOTOOLCHAIN": "auto"
   },
