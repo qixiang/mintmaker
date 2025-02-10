@@ -1,18 +1,16 @@
-/*
-Copyright 2024.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2024 Red Hat, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package controller
 
@@ -25,9 +23,10 @@ import (
 
 	appstudiov1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	mmv1alpha1 "github.com/konflux-ci/mintmaker/api/v1alpha1"
-	component "github.com/konflux-ci/mintmaker/internal/pkg/component"
-	utils "github.com/konflux-ci/mintmaker/internal/pkg/tekton"
-	. "github.com/konflux-ci/mintmaker/pkg/common"
+	. "github.com/konflux-ci/mintmaker/internal/pkg/constant"
+	"github.com/konflux-ci/mintmaker/internal/pkg/component"
+	"github.com/konflux-ci/mintmaker/internal/pkg/tekton"
+	"github.com/konflux-ci/mintmaker/internal/pkg/utils"
 	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -40,11 +39,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
-)
-
-const (
-	RenovateImageEnvName    = "RENOVATE_IMAGE"
-	DefaultRenovateImageUrl = "quay.io/konflux-ci/mintmaker-renovate-image:latest"
 )
 
 // DependencyUpdateCheckReconciler reconciles a DependencyUpdateCheck object
@@ -151,7 +145,7 @@ func (r *DependencyUpdateCheckReconciler) createMergedPullSecret(ctx context.Con
 	}
 
 	timestamp := time.Now().Unix()
-	name := fmt.Sprintf("renovate-image-pull-secrets-%d-%s", timestamp, RandomString(5))
+	name := fmt.Sprintf("renovate-image-pull-secrets-%d-%s", timestamp, utils.RandomString(5))
 
 	newSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -187,7 +181,7 @@ func (r *DependencyUpdateCheckReconciler) createPipelineRun(comp component.GitCo
 		}
 	}()
 
-	name := fmt.Sprintf("renovate-%d-%s", comp.GetTimestamp(), RandomString(8))
+	name := fmt.Sprintf("renovate-%d-%s", comp.GetTimestamp(), utils.RandomString(8))
 
 	renovateConfig, err := comp.GetRenovateConfig(registrySecret)
 	if err != nil {
@@ -231,7 +225,7 @@ func (r *DependencyUpdateCheckReconciler) createPipelineRun(comp component.GitCo
 	resources = append(resources, renovateSecret)
 
 	// Creating the pipelineRun definition
-	builder := utils.NewPipelineRunBuilder(name, MintMakerNamespaceName).
+	builder := tekton.NewPipelineRunBuilder(name, MintMakerNamespaceName).
 		WithLabels(map[string]string{
 			"mintmaker.appstudio.redhat.com/application":  comp.GetApplication(),
 			"mintmaker.appstudio.redhat.com/component":    comp.GetName(),
@@ -246,7 +240,7 @@ func (r *DependencyUpdateCheckReconciler) createPipelineRun(comp component.GitCo
 			Path: "renovate.json",
 		},
 	}
-	cmOpts := utils.NewMountOptions().WithTaskName("build").WithStepNames([]string{"renovate"})
+	cmOpts := tekton.NewMountOptions().WithTaskName("build").WithStepNames([]string{"renovate"})
 	builder.WithConfigMap(name, "/etc/renovate/config", cmItems, cmOpts)
 
 	secretItems := []corev1.KeyToPath{
@@ -255,7 +249,7 @@ func (r *DependencyUpdateCheckReconciler) createPipelineRun(comp component.GitCo
 			Path: "renovate-token",
 		},
 	}
-	secretOpts := utils.NewMountOptions().WithTaskName("build").WithStepNames([]string{"renovate"})
+	secretOpts := tekton.NewMountOptions().WithTaskName("build").WithStepNames([]string{"renovate"})
 	builder.WithSecret(name, "/etc/renovate/secret", secretItems, secretOpts)
 
 	// Check if a ConfigMap with the label `config.openshift.io/inject-trusted-cabundle: "true"` exists.
@@ -272,7 +266,7 @@ func (r *DependencyUpdateCheckReconciler) createPipelineRun(comp component.GitCo
 				Path: "tls-ca-bundle.pem",
 			},
 		}
-		caConfigMapOpts := utils.NewMountOptions().WithTaskName("build").WithStepNames([]string{"renovate"}).WithReadOnly(true)
+		caConfigMapOpts := tekton.NewMountOptions().WithTaskName("build").WithStepNames([]string{"renovate"}).WithReadOnly(true)
 		builder.WithConfigMap(caConfigMap.ObjectMeta.Name, "/etc/pki/ca-trust/extracted/pem", caConfigMapItems, caConfigMapOpts)
 	}
 
@@ -283,7 +277,7 @@ func (r *DependencyUpdateCheckReconciler) createPipelineRun(comp component.GitCo
 				Path: "config.json",
 			},
 		}
-		secretOpts := utils.NewMountOptions().WithTaskName("build").WithStepNames([]string{"renovate"}).WithReadOnly(true)
+		secretOpts := tekton.NewMountOptions().WithTaskName("build").WithStepNames([]string{"renovate"}).WithReadOnly(true)
 		builder.WithSecret(registrySecret.ObjectMeta.Name, "/home/renovate/.docker", secretItems, secretOpts)
 	}
 

@@ -1,43 +1,35 @@
-/*
-Copyright 2024 Red Hat, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// Copyright 2024 Red Hat, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package controller
 
 import (
-	"fmt"
-	"math/rand"
-	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
-	batch "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	gh "github.com/google/go-github/v45/github"
 	appstudiov1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	mmv1alpha1 "github.com/konflux-ci/mintmaker/api/v1alpha1"
 
-	. "github.com/konflux-ci/mintmaker/pkg/common"
-	"github.com/konflux-ci/mintmaker/pkg/git/github"
+	. "github.com/konflux-ci/mintmaker/internal/pkg/constant"
 )
 
 const (
@@ -332,50 +324,10 @@ func listPipelineRuns(namespace string) []tektonv1.PipelineRun {
 	return pipelineruns.Items
 }
 
-func listJobs(namespace string) []batch.Job {
-	jobs := &batch.JobList{}
-
-	err := k8sClient.List(ctx, jobs, client.InNamespace(namespace))
-	Expect(err).ToNot(HaveOccurred())
-	return jobs.Items
-}
-
 func deletePipelineRuns(namespace string) {
 	err := k8sClient.DeleteAllOf(ctx, &tektonv1.PipelineRun{}, client.InNamespace(namespace), client.PropagationPolicy(metav1.DeletePropagationBackground))
 	Expect(err).ToNot(HaveOccurred())
 	Eventually(func() bool {
 		return len(listPipelineRuns(namespace)) == 0
 	}, 10*time.Second, 100*time.Millisecond).Should(BeTrue())
-}
-
-func deleteJobs(namespace string) {
-	err := k8sClient.DeleteAllOf(ctx, &batch.Job{}, client.InNamespace(namespace), client.PropagationPolicy(metav1.DeletePropagationBackground))
-	Expect(err).ToNot(HaveOccurred())
-	Eventually(func() bool {
-		return len(listJobs(namespace)) == 0
-	}, 10*time.Second, 100*time.Millisecond).Should(BeTrue())
-}
-
-func generateInstallation(repositories []*gh.Repository) github.ApplicationInstallation {
-	return github.ApplicationInstallation{
-		ID:           int64(rand.Intn(100)),
-		Token:        RandomString(30),
-		Repositories: repositories,
-	}
-}
-
-func generateRepository(repoURL string) *gh.Repository {
-	repoURLParts := strings.Split(repoURL, "/")
-	return &gh.Repository{
-		HTMLURL:  &repoURL,
-		FullName: gh.String(fmt.Sprintf("%s/%s", repoURLParts[3], repoURLParts[4])),
-	}
-}
-
-func generateRepositories(repoURL []string) []*gh.Repository {
-	repositories := []*gh.Repository{}
-	for _, repo := range repoURL {
-		repositories = append(repositories, generateRepository(repo))
-	}
-	return repositories
 }
