@@ -107,11 +107,63 @@ func NewPipelineRunBuilder(name, namespace string) *PipelineRunBuilder {
 			Spec: tektonv1.PipelineRunSpec{
 				Status: tektonv1.PipelineRunSpecStatusPending,
 				PipelineSpec: &tektonv1.PipelineSpec{
+					Workspaces: []tektonv1.PipelineWorkspaceDeclaration{
+						{
+							Name: "shared-db",
+						},
+					},
 					Tasks: []tektonv1.PipelineTask{
 						{
-							Name: "build",
+							Name: "prepare-osv-db",
+							Workspaces: []tektonv1.WorkspacePipelineTaskBinding{
+								{
+									Name:      "shared-db",
+									Workspace: "shared-db",
+								},
+							},
 							TaskSpec: &tektonv1.EmbeddedTask{
 								TaskSpec: tektonv1.TaskSpec{
+									Workspaces: []tektonv1.WorkspaceDeclaration{
+										{
+											Name: "shared-db",
+										},
+									},
+									Steps: []tektonv1.Step{
+										{
+											Name:   "prepare-db",
+											Image:  "quay.io/konflux-ci/mintmaker-osv-database:latest",
+											Script: "cp -r /data/osv-db /workspace/shared-db",
+											SecurityContext: &corev1.SecurityContext{
+												Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+												RunAsNonRoot:             ptr.To(true),
+												AllowPrivilegeEscalation: ptr.To(false),
+												SeccompProfile: &corev1.SeccompProfile{
+													Type: corev1.SeccompProfileTypeRuntimeDefault,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						{
+							Name: "build",
+							RunAfter: []string{
+								"prepare-osv-db",
+							},
+							Workspaces: []tektonv1.WorkspacePipelineTaskBinding{
+								{
+									Name:      "shared-db",
+									Workspace: "shared-db",
+								},
+							},
+							TaskSpec: &tektonv1.EmbeddedTask{
+								TaskSpec: tektonv1.TaskSpec{
+									Workspaces: []tektonv1.WorkspaceDeclaration{
+										{
+											Name: "shared-db",
+										},
+									},
 									Steps: []tektonv1.Step{
 										{
 											Name:   "renovate",
@@ -127,12 +179,12 @@ func NewPipelineRunBuilder(name, namespace string) *PipelineRunBuilder {
 											},
 											ComputeResources: corev1.ResourceRequirements{
 												Requests: corev1.ResourceList{
-													"cpu":    resource.MustParse("150m"),
-													"memory": resource.MustParse("512Mi"),
+													"cpu":    resource.MustParse("300m"),
+													"memory": resource.MustParse("1Gi"),
 												},
 												Limits: corev1.ResourceList{
 													"cpu":    resource.MustParse("300m"),
-													"memory": resource.MustParse("1Gi"),
+													"memory": resource.MustParse("2Gi"),
 												},
 											},
 											Env: []corev1.EnvVar{
@@ -148,8 +200,33 @@ func NewPipelineRunBuilder(name, namespace string) *PipelineRunBuilder {
 													Name:  "LOG_LEVEL",
 													Value: "debug",
 												},
+												{
+													Name:  "OSV_OFFLINE_DISABLE_DOWNLOAD",
+													Value: "true",
+												},
+												{
+													Name:  "OSV_OFFLINE_ROOT_DIR",
+													Value: "/workspace/shared-db/osv-db",
+												},
 											},
 										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Workspaces: []tektonv1.WorkspaceBinding{
+					{
+						Name: "shared-db",
+						VolumeClaimTemplate: &corev1.PersistentVolumeClaim{
+							Spec: corev1.PersistentVolumeClaimSpec{
+								AccessModes: []corev1.PersistentVolumeAccessMode{
+									corev1.ReadWriteOnce,
+								},
+								Resources: corev1.VolumeResourceRequirements{
+									Requests: corev1.ResourceList{
+										corev1.ResourceStorage: resource.MustParse("750Mi"),
 									},
 								},
 							},
