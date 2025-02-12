@@ -26,10 +26,8 @@ import (
 const URL = "https://security.access.redhat.com/data/csaf/v2/advisories"
 
 // Get list of new advisories published in the last `days`
-// TODO: Do not use until published.csv is periodically generated
 func getAdvisoryListByPublished(days int) ([]string, error) {
-	// TODO: change filename to releases.csv!!! changes.csv is for testing purposes only!
-	response, err := http.Get(fmt.Sprintf("%s/%s", URL, "changes.csv"))
+	response, err := http.Get(fmt.Sprintf("%s/%s", URL, "releases.csv"))
 	if err != nil {
 		fmt.Println("Error downloading file:", err)
 		return nil, err

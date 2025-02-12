@@ -56,7 +56,7 @@ func TestGenerateOSVRPMs(t *testing.T) {
 	// Create a mock
 	httpmock.Activate()
 	t.Cleanup(httpmock.DeactivateAndReset)
-	httpmock.RegisterResponder("GET", "https://security.access.redhat.com/data/csaf/v2/advisories/changes.csv",
+	httpmock.RegisterResponder("GET", "https://security.access.redhat.com/data/csaf/v2/advisories/releases.csv",
 		httpmock.NewBytesResponder(200, []byte(`test-rhsa-advisory.json,2024-12-02T07:52:10+00:00`)))
 	// Set up a fake advisory
 	httpmock.RegisterResponder("GET", "https://security.access.redhat.com/data/csaf/v2/advisories/test-rhsa-advisory.json",
@@ -145,7 +145,7 @@ func TestGenerateOSVContainers(t *testing.T) {
 	// Create a mock
 	httpmock.Activate()
 	t.Cleanup(httpmock.DeactivateAndReset)
-	httpmock.RegisterResponder("GET", "https://security.access.redhat.com/data/csaf/v2/advisories/changes.csv",
+	httpmock.RegisterResponder("GET", "https://security.access.redhat.com/data/csaf/v2/advisories/releases.csv",
 		httpmock.NewBytesResponder(200, []byte(`test-rhsa-advisory.json,2024-12-02T07:52:10+00:00`)))
 	// Set up a fake advisory
 	httpmock.RegisterResponder("GET", "https://security.access.redhat.com/data/csaf/v2/advisories/test-rhsa-advisory.json",
