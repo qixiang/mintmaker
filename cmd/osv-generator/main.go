@@ -25,10 +25,10 @@ import (
 )
 
 func main() {
-	dockerFilename := flag.String("docker-filename", "docker.nedb", "Filename for the Docker DB file")
+	containerFilename := flag.String("container-filename", "docker.nedb", "Filename for the Container DB file")
 	rpmFilename := flag.String("rpm-filename", "rpm.nedb", "Filename for the RPM DB file")
 	destDir := flag.String("destination-dir", "/tmp/osv-offline", "Destination directory for the OSV DB files")
-	days := flag.Int("days", 90, "Only advisories created in the last X days are included")
+	days := flag.Int("days", 120, "Only advisories created in the last X days are included")
 
 	flag.Parse()
 	err := os.MkdirAll(*destDir, 0755)
@@ -43,7 +43,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	osv_generator.GenerateOSV(filepath.Join(*destDir, *dockerFilename), true, *days)
+	osv_generator.GenerateOSV(filepath.Join(*destDir, *containerFilename), true, *days)
 	if err != nil {
 		fmt.Println("Generating the container OSV database has failed: ", err)
 		os.Exit(1)

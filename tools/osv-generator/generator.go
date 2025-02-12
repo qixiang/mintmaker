@@ -25,8 +25,10 @@ import (
 
 const URL = "https://security.access.redhat.com/data/csaf/v2/advisories"
 
-// Get list of new advisories published in the last `days`
-func getAdvisoryListByPublished(days int) ([]string, error) {
+// Get a list of advisory filenames from releases.csv that were released
+// within the specified number of days from the current time. The advisory
+// filenames in releases.csv are sorted by released date, newest first.
+func getAdvisoryListByReleases(days int) ([]string, error) {
 	response, err := http.Get(fmt.Sprintf("%s/%s", URL, "releases.csv"))
 	if err != nil {
 		fmt.Println("Error downloading file:", err)
@@ -113,7 +115,7 @@ func extractAdvisory(advisory string, containerVulns bool) []OSV {
 // Generate OSV vulnerabilities from CSAF VEX data and store to a file
 func GenerateOSV(filename string, containerVulns bool, days int) error {
 	var osvList []OSV
-	advisories, err := getAdvisoryListByPublished(days)
+	advisories, err := getAdvisoryListByReleases(days)
 	if err != nil {
 		return err
 	}
