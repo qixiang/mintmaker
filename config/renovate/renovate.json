@@ -15,11 +15,9 @@
   "autodiscover": false,
   "pruneStaleBranches": false,
   "branchConcurrentLimit": 0,
+  "containerVulnerabilityAlerts": true,
   "customEnvVariables": {
     "GOTOOLCHAIN": "auto"
-  },
-  "vulnerabilityAlerts": {
-    "enabled": false
   },
   "additionalBranchPrefix": "{{baseBranch}}/",
   "branchPrefix": "konflux/mintmaker/",
