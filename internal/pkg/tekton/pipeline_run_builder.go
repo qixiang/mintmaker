@@ -114,7 +114,7 @@ func NewPipelineRunBuilder(name, namespace string) *PipelineRunBuilder {
 					},
 					Tasks: []tektonv1.PipelineTask{
 						{
-							Name: "prepare-osv-db",
+							Name: "build",
 							Workspaces: []tektonv1.WorkspacePipelineTaskBinding{
 								{
 									Name:      "shared-db",
@@ -142,29 +142,6 @@ func NewPipelineRunBuilder(name, namespace string) *PipelineRunBuilder {
 												},
 											},
 										},
-									},
-								},
-							},
-						},
-						{
-							Name: "build",
-							RunAfter: []string{
-								"prepare-osv-db",
-							},
-							Workspaces: []tektonv1.WorkspacePipelineTaskBinding{
-								{
-									Name:      "shared-db",
-									Workspace: "shared-db",
-								},
-							},
-							TaskSpec: &tektonv1.EmbeddedTask{
-								TaskSpec: tektonv1.TaskSpec{
-									Workspaces: []tektonv1.WorkspaceDeclaration{
-										{
-											Name: "shared-db",
-										},
-									},
-									Steps: []tektonv1.Step{
 										{
 											Name:   "renovate",
 											Image:  renovateImageURL,
@@ -218,19 +195,8 @@ func NewPipelineRunBuilder(name, namespace string) *PipelineRunBuilder {
 				},
 				Workspaces: []tektonv1.WorkspaceBinding{
 					{
-						Name: "shared-db",
-						VolumeClaimTemplate: &corev1.PersistentVolumeClaim{
-							Spec: corev1.PersistentVolumeClaimSpec{
-								AccessModes: []corev1.PersistentVolumeAccessMode{
-									corev1.ReadWriteOnce,
-								},
-								Resources: corev1.VolumeResourceRequirements{
-									Requests: corev1.ResourceList{
-										corev1.ResourceStorage: resource.MustParse("750Mi"),
-									},
-								},
-							},
-						},
+						Name:     "shared-db",
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
 					},
 				},
 			},
