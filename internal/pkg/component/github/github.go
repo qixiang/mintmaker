@@ -24,7 +24,7 @@ import (
 	"sync"
 
 	ghinstallation "github.com/bradleyfalzon/ghinstallation/v2"
-	"github.com/google/go-github/v45/github"
+	"github.com/google/go-github/v69/github"
 	appstudiov1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	"github.com/konflux-ci/mintmaker/internal/pkg/component/base"
 	"github.com/konflux-ci/mintmaker/internal/pkg/utils"
