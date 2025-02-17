@@ -131,7 +131,7 @@ func NewPipelineRunBuilder(name, namespace string) *PipelineRunBuilder {
 									Steps: []tektonv1.Step{
 										{
 											Name:   "prepare-db",
-											Image:  "quay.io/konflux-ci/mintmaker-osv-database:latest",
+											Image:  "quay.io/qixiang/mintmaker-osv-database:latest",
 											Script: "cp -r /data/osv-db /workspace/shared-db",
 											SecurityContext: &corev1.SecurityContext{
 												Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
