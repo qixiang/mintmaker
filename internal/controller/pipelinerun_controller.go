@@ -36,7 +36,7 @@ import (
 )
 
 var (
-	MaxSimultaneousPipelineRuns      = 20
+	MaxSimultaneousPipelineRuns      = 1
 	MintMakerGitPlatformLabel        = "mintmaker.appstudio.redhat.com/git-platform"
 	MintMakerReconcileTimestampLabel = "mintmaker.appstudio.redhat.com/reconcile-timestamp"
 	MintMakerComponentNameLabel      = "mintmaker.appstudio.redhat.com/component"
