@@ -55,7 +55,7 @@ var vexSampleFile = []byte(`{
                 "branches": [{
                     "product": {
                         "product_identification_helper": {
-                            "purl": "pkg:rpm/testpackage@1.0.1?arch=x86_64"
+                            "purl": "pkg:rpm/redhat/testpackage@1.0.1?arch=x86_64"
                         }
                     }
                 }, {
@@ -102,8 +102,8 @@ func TestGetAffectedListRPMs(t *testing.T) {
 	if affectedList[0].Package.Name != "testpackage" {
 		t.Fatalf("expected testpackage, got %s", affectedList[0].Package.Name)
 	}
-	if affectedList[0].Package.Purl != "pkg:rpm/testpackage@1.0.1" {
-		t.Fatalf("expected pkg:rpm/testpackage@1.0.0, got %s", affectedList[0].Package.Purl)
+	if affectedList[0].Package.Purl != "pkg:rpm/redhat/testpackage" {
+		t.Fatalf("expected pkg:rpm/redhat/testpackage, got %s", affectedList[0].Package.Purl)
 	}
 }
 

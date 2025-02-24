@@ -143,13 +143,13 @@ func getAffectedListRPMs(vex VEX) []*Affected {
 					}
 
 					// Parse name and version from pURL
-					re := regexp.MustCompile(`pkg:rpm(?:mod)?/([^@]+)@([^?]+)`)
+					re := regexp.MustCompile(`(pkg:rpm(?:mod)?/(?:redhat/)?([^@]+))@([^?]+)`)
 					matches := re.FindStringSubmatch(subSubBranch.Product.ProductIdentificationHelper.Purl)
-					purl, packageName, version := matches[0], matches[1], matches[2]
+					purl, packageName, version := matches[1], matches[2], matches[3]
 
 					affectedPackage := Affected{
 						Package: &Package{
-							Ecosystem: "Red Hat",
+							Ecosystem: "RPM",
 							Name:      packageName,
 							Purl:      purl,
 						},

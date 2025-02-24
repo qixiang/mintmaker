@@ -30,7 +30,7 @@ var sampleCSV = []byte(`2023/rhsa-2023_6919.json,2024-12-02T08:22:15+00:00
 2022/rhsa-2022_5249.json,2024-12-02T07:52:17+00:00
 2024/rhsa-2024_5439.json,2024-12-02T07:52:10+00:00`)
 
-var sampleOSVResultRPMs = `{"_id":"abcd","schema_version":"1.6.0","id":"CVE","database_specific":{"severity":"Moderate","cwe_ids":["CWE"]},"published":"2024-08-20T10:54:54Z","summary":"summary","details":"description","affected":[{"package":{"ecosystem":"Red Hat","name":"redhat/openstack","purl":"pkg:rpm/redhat/openstack@2.0.0"},"ranges":[{"type":"ECOSYSTEM","events":[{"introduced":"0.0.0"},{"fixed":"2.0.0"}]}]}],"references":[{"type":"WEB","url":"fake-url"}]}`
+var sampleOSVResultRPMs = `{"_id":"abcd","schema_version":"1.6.0","id":"CVE","database_specific":{"severity":"Moderate","cwe_ids":["CWE"]},"published":"2024-08-20T10:54:54Z","summary":"summary","details":"description","affected":[{"package":{"ecosystem":"RPM","name":"openstack","purl":"pkg:rpm/redhat/openstack"},"ranges":[{"type":"ECOSYSTEM","events":[{"introduced":"0.0.0"},{"fixed":"2.0.0"}]}]}],"references":[{"type":"WEB","url":"fake-url"}]}`
 var sampleOSVResultContainers = `{"_id":"abcd","schema_version":"1.6.0","id":"CVE","database_specific":{"severity":"Moderate","cwe_ids":["CWE"]},"published":"2024-08-20T10:54:54Z","summary":"summary","details":"description","affected":[{"package":{"ecosystem":"Docker","name":"some-registry.com/org/repo","purl":"pkg:oci/test-image@sha256:abcd?arch=amd64\u0026repository_url=some-registry.com/org/repo\u0026tag=v1"},"ranges":[]}],"references":[{"type":"WEB","url":"fake-url"}]}`
 
 func TestGetAdvisoryListByModified(t *testing.T) {
