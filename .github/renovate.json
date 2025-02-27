@@ -9,9 +9,11 @@
     "packageRules": [
       {
         "matchPackageNames": [
-          "registry.access.redhat.com/ubi9/go-toolset"
+          "registry.access.redhat.com/ubi9/go-toolset",
+          "registry.access.redhat.com/ubi9/ubi-minimal"
         ],
-        "allowedVersions": "<=1.21"
+        "matchUpdateTypes": ["major", "minor", "patch"],
+        "enabled": false
       }
     ]
   }
