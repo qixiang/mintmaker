@@ -16,25 +16,103 @@ package github
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	. "github.com/konflux-ci/mintmaker/internal/pkg/constant"
 )
 
-type Cache struct {
-	data sync.Map
+// StaleAllowedCache refreshes data in the background while optionally
+// serving stale data to maintain low latency during refreshes.
+type StaleAllowedCache struct {
+	data              sync.Map
+	expiry            atomic.Value
+	refreshMutex      sync.Mutex
+	refreshInProgress bool
+	refreshDone       chan struct{}
+	refreshPeriod     time.Duration
+	refreshFunc       func() (interface{}, error)
 }
 
-func NewCache() *Cache {
-	return &Cache{}
+func NewStaleAllowedCache(refreshPeriod time.Duration, refreshFunc func() (interface{}, error)) *StaleAllowedCache {
+	expiryTime := time.Now().Add(refreshPeriod)
+	c := &StaleAllowedCache{
+		refreshPeriod: refreshPeriod,
+		refreshFunc:   refreshFunc,
+	}
+	c.expiry.Store(expiryTime)
+	return c
 }
 
-func (c *Cache) Get(key string) (interface{}, bool) {
-	return c.data.Load(key)
+// Get returns data from the cache, possibly stale data if a refresh
+// is currently in progress. On first access, this call will block
+// until data is available.
+func (c *StaleAllowedCache) Get(key string) (interface{}, bool) {
+	value, ok := c.data.Load(key)
+	expiryTime := c.expiry.Load().(time.Time)
+
+	needsRefresh := !ok || time.Now().After(expiryTime)
+	if !needsRefresh {
+		return value, ok
+	}
+	// Refresh the cache and get data
+	return c.getWithRefresh(key)
 }
 
-func (c *Cache) Set(key string, value interface{}) {
-	c.data.Store(key, value)
+func (c *StaleAllowedCache) getWithRefresh(key string) (interface{}, bool) {
+	c.refreshMutex.Lock()
+
+	// There is refresh in progress, wait for it to be finished and get the data
+	if c.refreshInProgress {
+		done := c.refreshDone
+		c.refreshMutex.Unlock()
+
+		<-done
+		return c.data.Load(key)
+	}
+
+	// We're going to refresh the cache
+	c.refreshInProgress = true
+	c.refreshDone = make(chan struct{})
+	refreshDone := c.refreshDone
+
+	value, exists := c.data.Load(key)
+	c.refreshMutex.Unlock()
+
+	cleanup := func() {
+		c.refreshMutex.Lock()
+		c.refreshInProgress = false
+		close(refreshDone) // Signal that refresh is complete
+		c.refreshMutex.Unlock()
+	}
+
+	// We have existing data, return it and refresh in background
+	if exists {
+		// Refresh in background
+		go func() {
+			defer cleanup()
+			// Call the refresh function
+			if newData, err := c.refreshFunc(); err == nil {
+				c.data.Store(key, newData)
+				c.expiry.Store(time.Now().Add(c.refreshPeriod))
+			}
+		}()
+		// Return current data (which might be old)
+		return value, true
+	}
+
+	// No existing data, perform refresh synchronously
+	defer cleanup()
+
+	// Call the refresh function
+	newData, err := c.refreshFunc()
+	if err != nil {
+		return nil, false
+	}
+	// Store the new data and return it
+	c.data.Store(key, newData)
+	c.expiry.Store(time.Now().Add(c.refreshPeriod))
+	return newData, true
 }
 
 type TokenInfo struct {

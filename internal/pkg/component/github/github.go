@@ -26,27 +26,27 @@ import (
 
 	ghinstallation "github.com/bradleyfalzon/ghinstallation/v2"
 	"github.com/google/go-github/v45/github"
-	appstudiov1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
-	"github.com/konflux-ci/mintmaker/internal/pkg/component/base"
-	"github.com/konflux-ci/mintmaker/internal/pkg/utils"
 	"golang.org/x/oauth2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	appstudiov1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
+
+	"github.com/konflux-ci/mintmaker/internal/pkg/component/base"
 	. "github.com/konflux-ci/mintmaker/internal/pkg/constant"
+	"github.com/konflux-ci/mintmaker/internal/pkg/utils"
 )
 
 //TODO: doc about only supporting GitHub with the installed GitHub App
 
 var (
-	ghAppInstallationsCache      *Cache
-	ghAppInstallationsCacheMutex sync.Mutex
-	ghAppInstallationsCacheID    int64
-	ghAppInstallationTokenCache  TokenCache
-	ghAppID                      int64
-	ghAppPrivateKey              []byte
-	ghUserID                     int64
+	ghAppInstallationsCache     *StaleAllowedCache
+	ghAppInstallationInitOnce   sync.Once
+	ghAppInstallationTokenCache TokenCache
+	ghAppID                     int64
+	ghAppPrivateKey             []byte
+	ghUserID                    int64
 	// vars for mocking purposes, during testing
 	GetRenovateConfigFn func(registrySecret *corev1.Secret) (string, error)
 	GetTokenFn          func() (string, error)
@@ -137,7 +137,7 @@ func (c *Component) GetBranch() (string, error) {
 	return branch, nil
 }
 
-func (c *Component) getMyInstallationID() (int64, error) {
+func (c *Component) getInstallationID() (int64, error) {
 	var installationID int64
 	found := false
 
@@ -171,7 +171,7 @@ func (c *Component) GetToken() (string, error) {
 		return GetTokenFn()
 	}
 
-	installationID, err := c.getMyInstallationID()
+	installationID, err := c.getInstallationID()
 	if err != nil {
 		return "", fmt.Errorf("failed to get installation ID: %w", err)
 	}
@@ -209,17 +209,27 @@ func (c *Component) GetToken() (string, error) {
 }
 
 func (c *Component) getAppInstallations() ([]AppInstallation, error) {
-	ghAppInstallationsCacheMutex.Lock()
-	defer ghAppInstallationsCacheMutex.Unlock()
+	// Initialize the cache if it hasn't been initialized yet
+	ghAppInstallationInitOnce.Do(func() {
+		ghAppInstallationsCache = NewStaleAllowedCache(2*time.Hour, func() (interface{}, error) {
+			return c.fetchAppInstallations()
+		})
+	})
 
-	if ghAppInstallationsCache == nil || ghAppInstallationsCacheID != c.Timestamp {
-		ghAppInstallationsCache = NewCache()
-		ghAppInstallationsCacheID = c.Timestamp
-	}
-	if data, ok := ghAppInstallationsCache.Get("installations"); ok {
-		return data.([]AppInstallation), nil
+	// Get from cache - this will block until initial data is loaded if this is the first access.
+	// May return stale data if a background refresh is in progress, which is acceptable for
+	// app installation data since it's not a hard requirement to process with real-time data.
+	data, ok := ghAppInstallationsCache.Get("installations")
+	if !ok {
+		return nil, fmt.Errorf("failed to get GitHub app installations")
 	}
 
+	return data.([]AppInstallation), nil
+}
+
+// fetchAppInstallations fetches GitHub App installations and corresponding repositories
+// in each installation
+func (c *Component) fetchAppInstallations() ([]AppInstallation, error) {
 	var appInstallations []AppInstallation
 
 	itr, err := ghinstallation.NewAppsTransport(http.DefaultTransport, c.AppID, c.AppPrivateKey)
@@ -285,7 +295,6 @@ func (c *Component) getAppInstallations() ([]AppInstallation, error) {
 		opt.Page = resp.NextPage
 	}
 
-	ghAppInstallationsCache.Set("installations", appInstallations)
 	return appInstallations, nil
 }
 
