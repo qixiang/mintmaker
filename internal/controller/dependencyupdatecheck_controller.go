@@ -258,7 +258,8 @@ func (r *DependencyUpdateCheckReconciler) createPipelineRun(comp component.GitCo
 			"mintmaker.appstudio.redhat.com/git-platform":        comp.GetPlatform(), // (github, gitlab)
 			"mintmaker.appstudio.redhat.com/git-host":            comp.GetHost(),     // github.com, gitlab.com, gitlab.other.com
 			"mintmaker.appstudio.redhat.com/reconcile-timestamp": strconv.FormatInt(comp.GetTimestamp(), 10),
-		})
+		}).
+        WithTimeouts(nil)
 	builder.WithServiceAccount("mintmaker-controller-manager")
 
 	cmItems := []corev1.KeyToPath{

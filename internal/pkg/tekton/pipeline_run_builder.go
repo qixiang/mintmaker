@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"time"
 	"unicode"
 
 	"github.com/hashicorp/go-multierror"
@@ -445,7 +446,10 @@ func (b *PipelineRunBuilder) WithServiceAccount(serviceAccount string) *Pipeline
 }
 
 // WithTimeouts sets the Timeouts for the PipelineRun.
-func (b *PipelineRunBuilder) WithTimeouts(timeouts, defaultTimeouts *tektonv1.TimeoutFields) *PipelineRunBuilder {
+func (b *PipelineRunBuilder) WithTimeouts(timeouts *tektonv1.TimeoutFields) *PipelineRunBuilder {
+	defaultTimeouts := &tektonv1.TimeoutFields{
+		Pipeline: &metav1.Duration{Duration: 1 * time.Hour},
+	}
 	if timeouts == nil || *timeouts == (tektonv1.TimeoutFields{}) {
 		b.pipelineRun.Spec.Timeouts = defaultTimeouts
 	} else {

@@ -271,10 +271,8 @@ var _ = Describe("PipelineRun builder", func() {
 			builder := NewPipelineRunBuilder("testPrefix", "testNamespace")
 			timeouts := &tektonv1.TimeoutFields{
 				Pipeline: &metav1.Duration{Duration: 1 * time.Hour},
-				Tasks:    &metav1.Duration{Duration: 1 * time.Hour},
-				Finally:  &metav1.Duration{Duration: 1 * time.Hour},
 			}
-			builder.WithTimeouts(timeouts, nil)
+			builder.WithTimeouts(timeouts)
 			Expect(builder.pipelineRun.Spec.Timeouts).To(Equal(timeouts))
 		})
 
@@ -282,10 +280,8 @@ var _ = Describe("PipelineRun builder", func() {
 			builder := NewPipelineRunBuilder("testPrefix", "testNamespace")
 			defaultTimeouts := &tektonv1.TimeoutFields{
 				Pipeline: &metav1.Duration{Duration: 1 * time.Hour},
-				Tasks:    &metav1.Duration{Duration: 1 * time.Hour},
-				Finally:  &metav1.Duration{Duration: 1 * time.Hour},
 			}
-			builder.WithTimeouts(nil, defaultTimeouts)
+			builder.WithTimeouts(nil)
 			Expect(builder.pipelineRun.Spec.Timeouts).To(Equal(defaultTimeouts))
 		})
 	})
