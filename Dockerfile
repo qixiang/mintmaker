@@ -18,7 +18,6 @@ COPY cmd/osv-generator/main.go cmd/osv-generator/main.go
 COPY api/ api/
 COPY tools/ tools/
 COPY internal/ internal/
-COPY licenses/ licenses/
 
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager cmd/manager/main.go
@@ -26,6 +25,10 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o osv-generator cmd/osv-g
 
 FROM registry.access.redhat.com/ubi9/ubi-minimal:latest@sha256:ac61c96b93894b9169221e87718733354dd3765dd4a62b275893c7ff0d876869
 WORKDIR /
+# OpenShift preflight check requires licensing files under /licenses
+COPY licenses/ licenses
+
+# Copy the binary files from builder
 COPY --from=builder /opt/app-root/src/manager .
 COPY --from=builder /opt/app-root/src/osv-generator .
 
