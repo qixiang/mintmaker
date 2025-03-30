@@ -136,4 +136,4 @@ require (
 // Pin cel-go to this version to avoid API incompatibility with k8s.io/apiserver v0.32.3
 // where ext.TwoVarComprehensions() signature changed from func() to func(...Option)
 // Can be removed once we upgrade to a k8s version that correctly handles this change
-replace github.com/google/cel-go => github.com/google/cel-go v0.22.0
+replace github.com/google/cel-go => github.com/google/cel-go v0.24.1
