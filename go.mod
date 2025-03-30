@@ -52,7 +52,7 @@ require (
 require (
 	cel.dev/expr v0.22.0 // indirect
 	github.com/dchest/uniuri v1.2.0
-	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
+	github.com/fxamacker/cbor/v2 v2.8.0 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
