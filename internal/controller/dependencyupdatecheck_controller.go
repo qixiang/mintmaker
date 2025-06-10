@@ -258,6 +258,7 @@ func (r *DependencyUpdateCheckReconciler) createPipelineRun(name string, comp co
 			"mintmaker.appstudio.redhat.com/namespace":    comp.GetNamespace(),
 			"mintmaker.appstudio.redhat.com/git-platform": comp.GetPlatform(), // (github, gitlab)
 			"mintmaker.appstudio.redhat.com/git-host":     comp.GetHost(),     // github.com, gitlab.com, gitlab.other.com
+			"mintmaker.appstudio.redhat.com/repository":   comp.GetRepository(),
 		}).
 		WithTimeouts(nil)
 	builder.WithServiceAccount("mintmaker-controller-manager")
