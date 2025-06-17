@@ -16,11 +16,13 @@ package controller
 
 import (
 	"strconv"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -29,7 +31,7 @@ import (
 	tekton "github.com/konflux-ci/mintmaker/internal/pkg/tekton"
 )
 
-func setupPipelineRun(name string, labels map[string]string) {
+func setupPipelineRun(name string, labels map[string]string, creationTimeOffset time.Duration) {
 	pipelineRunBuilder := tekton.NewPipelineRunBuilder(name, MintMakerNamespaceName)
 	var err error
 	var pipelinerun *tektonv1.PipelineRun
@@ -39,6 +41,12 @@ func setupPipelineRun(name string, labels map[string]string) {
 		pipelinerun, err = pipelineRunBuilder.Build()
 	}
 	Expect(err).NotTo(HaveOccurred())
+
+	// Set creation timestamp for testing ordering
+	if creationTimeOffset != 0 {
+		pipelinerun.CreationTimestamp = metav1.NewTime(time.Now().Add(-creationTimeOffset))
+	}
+
 	Expect(k8sClient.Create(ctx, pipelinerun)).Should(Succeed())
 }
 
@@ -63,31 +71,54 @@ var _ = Describe("PipelineRun Controller", FlakeAttempts(5), func() {
 
 		_ = AfterEach(func() {
 			MaxSimultaneousPipelineRuns = originalMaxSimultaneousPipelineRuns
-
 			teardownPipelineRuns()
 		})
 
-		It("should successfully launch new pipelineruns", func() {
-
+		It("should successfully launch new pipelineruns based on max limit", func() {
+			// Create 3 PipelineRuns
 			for i := range 3 {
 				pplrName := "pplnr" + strconv.Itoa(i)
-				setupPipelineRun(pplrName, nil)
+				setupPipelineRun(pplrName, nil, 0)
 			}
 			Expect(listPipelineRuns(MintMakerNamespaceName)).Should(HaveLen(3))
 
-			existingPipelineRuns := tektonv1.PipelineRunList{
-				Items: listPipelineRuns(MintMakerNamespaceName),
-			}
-			count := 0
-			for _, pipelineRun := range existingPipelineRuns.Items {
-				if pipelineRun.Spec.Status == "" {
-					count += 1
+			// Only MaxSimultaneousPipelineRuns should be started
+			Eventually(func() int {
+				count := 0
+				existingPipelineRuns := listPipelineRuns(MintMakerNamespaceName)
+				for _, pipelineRun := range existingPipelineRuns {
+					if pipelineRun.Spec.Status == "" {
+						count += 1
+					}
 				}
-			}
-			Expect(count).Should(Equal(MaxSimultaneousPipelineRuns))
+				return count
+			}, timeout, interval).Should(Equal(MaxSimultaneousPipelineRuns))
+		})
+
+		It("should launch pipelineruns in order of creation time", func() {
+			// Create 3 PipelineRuns with different creation times
+			setupPipelineRun("oldest", nil, 30*time.Minute)
+			setupPipelineRun("middle", nil, 15*time.Minute)
+			setupPipelineRun("newest", nil, 5*time.Minute)
+
+			Expect(listPipelineRuns(MintMakerNamespaceName)).Should(HaveLen(3))
+
+			// The oldest should be started first, followed by middle
+			Eventually(func() bool {
+				oldest := &tektonv1.PipelineRun{}
+				middle := &tektonv1.PipelineRun{}
+				newest := &tektonv1.PipelineRun{}
+
+				k8sClient.Get(ctx, types.NamespacedName{Namespace: MintMakerNamespaceName, Name: "oldest"}, oldest)
+				k8sClient.Get(ctx, types.NamespacedName{Namespace: MintMakerNamespaceName, Name: "middle"}, middle)
+				k8sClient.Get(ctx, types.NamespacedName{Namespace: MintMakerNamespaceName, Name: "newest"}, newest)
+
+				return oldest.Spec.Status == "" && middle.Spec.Status == "" && newest.Spec.Status == tektonv1.PipelineRunSpecStatusPending
+			}, timeout, interval).Should(BeTrue())
 		})
 	})
-	Context("When launching new pipelineruns", func() {
+
+	Context("When handling GitHub token refresh", func() {
 		var origGetTokenFn func() (string, error)
 		originalMaxSimultaneousPipelineRuns := MaxSimultaneousPipelineRuns
 		labels := map[string]string{
@@ -120,8 +151,6 @@ var _ = Describe("PipelineRun Controller", FlakeAttempts(5), func() {
 			)
 			configMapData := map[string]string{"renovate.json": "{}"}
 			createSecret(types.NamespacedName{Namespace: MintMakerNamespaceName, Name: "pplnr1"}, configMapData)
-			createSecret(types.NamespacedName{Namespace: MintMakerNamespaceName, Name: "pplnr2"}, configMapData)
-
 		})
 
 		_ = AfterEach(func() {
@@ -132,58 +161,48 @@ var _ = Describe("PipelineRun Controller", FlakeAttempts(5), func() {
 			})
 			deleteSecret(types.NamespacedName{Namespace: MintMakerNamespaceName, Name: "pipelines-as-code-secret"})
 			deleteSecret(types.NamespacedName{Namespace: MintMakerNamespaceName, Name: "pplnr1"})
-			deleteSecret(types.NamespacedName{Namespace: MintMakerNamespaceName, Name: "pplnr2"})
 
-			pplr := tektonv1.PipelineRun{}
-			k8sClient.Get(ctx, types.NamespacedName{Namespace: MintMakerNamespaceName, Name: "pplnr1"}, &pplr)
 			teardownPipelineRuns()
 		})
 
-		It("should launch 'github' pipelines first", func() {
-
-			var flag1, flag2 bool = false, false
-
-			setupPipelineRun("pplnr1", labels)
-			setupPipelineRun("pplnr2", nil)
-			Expect(listPipelineRuns(MintMakerNamespaceName)).Should(HaveLen(2))
-
-			pipelineRuns := listPipelineRuns(MintMakerNamespaceName)
-			for _, plr := range pipelineRuns {
-				if plr.Labels[MintMakerGitPlatformLabel] == "github" {
-					Eventually(plr.Spec.Status).Should(BeEmpty())
-					flag1 = true
-				} else {
-					Consistently(string(plr.Spec.Status)).Should(Equal(tektonv1.PipelineRunSpecStatusPending))
-					flag2 = true
-				}
-			}
-			Expect(flag1 && flag2).To(BeTrue()) //make sure both clauses were executed
-		})
-
 		It("should renew github token if it became old", func() {
+			// Set up initial token in the secret
 			appSecret := corev1.Secret{}
 			Expect(
 				k8sClient.Get(ctx, types.NamespacedName{Namespace: MintMakerNamespaceName, Name: "pplnr1"}, &appSecret),
 			).To(Succeed())
 			originalAppSecret := appSecret.DeepCopy()
-			appSecret.Data["renovate-token"] = []byte("oldtoken")
+			appSecret.Data = map[string][]byte{
+				"renovate-token": []byte("oldtoken"),
+			}
 			secretPatch := client.MergeFrom(originalAppSecret)
 			Expect(
 				k8sClient.Patch(ctx, &appSecret, secretPatch),
 			).To(Succeed())
 
-			setupPipelineRun("pplnr1", labels)
+			// Create the PipelineRun with GitHub labels
+			setupPipelineRun("pplnr1", labels, 0)
 			Expect(listPipelineRuns(MintMakerNamespaceName)).Should(HaveLen(1))
 
-			// check that secret is updated with new token; for some weird reason, getSecret did not return the updated value
-			Eventually(
-				func() []byte {
-					finalSecret := corev1.Secret{}
-					k8sClient.Get(ctx, types.NamespacedName{Namespace: MintMakerNamespaceName, Name: "pplnr1"}, &finalSecret)
-					return finalSecret.Data["renovate-token"]
-				}(),
-			).Should(Equal([]byte("tokenstring")))
+			// Verify the token gets updated
+			Eventually(func() []byte {
+				updatedSecret := &corev1.Secret{}
+				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: MintMakerNamespaceName, Name: "pplnr1"}, updatedSecret)
+				if err != nil {
+					return []byte{}
+				}
+				return updatedSecret.Data["renovate-token"]
+			}, timeout, interval).Should(Equal([]byte("tokenstring")))
 
+			// Verify the PipelineRun is started
+			Eventually(func() tektonv1.PipelineRunSpecStatus {
+				pipelineRun := &tektonv1.PipelineRun{}
+				err := k8sClient.Get(ctx, types.NamespacedName{Namespace: MintMakerNamespaceName, Name: "pplnr1"}, pipelineRun)
+				if err != nil {
+					return ""
+				}
+				return pipelineRun.Spec.Status
+			}, timeout, interval).Should(Equal(tektonv1.PipelineRunSpecStatus("")))
 		})
 	})
 })
