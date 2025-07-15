@@ -354,3 +354,22 @@ func deletePipelineRuns(namespace string) {
 		return len(listPipelineRuns(namespace)) == 0
 	}, 10*time.Second, 100*time.Millisecond).Should(BeTrue())
 }
+
+func deletePipelineRun(resourceKey types.NamespacedName) {
+	pipelineRun := &tektonv1.PipelineRun{}
+	if err := k8sClient.Get(ctx, resourceKey, pipelineRun); err != nil {
+		if k8sErrors.IsNotFound(err) {
+			return
+		}
+		Fail(err.Error())
+	}
+	if err := k8sClient.Delete(ctx, pipelineRun); err != nil {
+		if !k8sErrors.IsNotFound(err) {
+			Fail(err.Error())
+		}
+		return
+	}
+	Eventually(func() bool {
+		return k8sErrors.IsNotFound(k8sClient.Get(ctx, resourceKey, pipelineRun))
+	}, timeout, interval).Should(BeTrue())
+}

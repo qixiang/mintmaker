@@ -15,10 +15,12 @@
 package controller
 
 import (
+	"errors"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -117,6 +119,7 @@ var _ = Describe("Event Controller", func() {
 			Expect(k8sClient.Delete(ctx, secret)).Should(Succeed())
 			deleteComponent(types.NamespacedName{Name: componentName, Namespace: componentNamespace})
 			deleteSecret(types.NamespacedName{Name: "pipelines-as-code-secret", Namespace: MintMakerNamespaceName})
+			deletePipelineRun(types.NamespacedName{Name: "test-pr", Namespace: MintMakerNamespaceName})
 		})
 
 		It("should successfully add the renovate token", func() {
@@ -281,6 +284,53 @@ var _ = Describe("Event Controller", func() {
 				_ = k8sClient.Get(ctx, client.ObjectKey{Name: secretName, Namespace: MintMakerNamespaceName}, updatedSecret)
 				return updatedSecret.Data
 			}).ShouldNot(HaveKey("renovate-token"))
+		})
+
+		It("should cancel pipelinerun when token generation fails", func() {
+			const prName = "test-pr"
+			pr := &tektonv1.PipelineRun{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      prName,
+					Namespace: MintMakerNamespaceName,
+				},
+				Spec: tektonv1.PipelineRunSpec{
+					// Using PipelineRef for test convenience only, it provides
+					// a simple way to create a PipelineRun
+					PipelineRef: &tektonv1.PipelineRef{
+						Name: "test-pipeline",
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, pr)).Should(Succeed())
+			pod.Labels["tekton.dev/pipelineRun"] = prName
+			Expect(k8sClient.Update(ctx, pod)).Should(Succeed())
+
+			ghcomponent.GetTokenFn = func() (string, error) {
+				return "", errors.New("token error")
+			}
+
+			event := &corev1.Event{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-event-for-pr",
+					Namespace: MintMakerNamespaceName,
+				},
+				InvolvedObject: corev1.ObjectReference{
+					Kind:      "Pod",
+					Name:      podName,
+					Namespace: MintMakerNamespaceName,
+				},
+				Reason:  "FailedMount",
+				Message: `MountVolume.SetUp failed for volume "` + volumeName + `" : references non-existent secret key: renovate-token`,
+			}
+			Expect(k8sClient.Create(ctx, event)).Should(Succeed())
+
+			Eventually(func() string {
+				updatedPR := &tektonv1.PipelineRun{}
+				if err := k8sClient.Get(ctx, client.ObjectKey{Name: prName, Namespace: MintMakerNamespaceName}, updatedPR); err != nil {
+					return ""
+				}
+				return string(updatedPR.Spec.Status)
+			}, time.Second*10).Should(Equal(string(tektonv1.PipelineRunSpecStatusCancelled)))
 		})
 	})
 })

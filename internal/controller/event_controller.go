@@ -18,6 +18,7 @@ import (
 	"context"
 	"regexp"
 
+	tektonv1 "github.com/tektoncd/pipeline/pkg/apis/pipeline/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -61,21 +62,57 @@ func (r *EventReconciler) markEventAsProcessed(ctx context.Context, event *corev
 // +kubebuilder:rbac:groups="",resources=events,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=events/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=events/finalizers,verbs=update
+// +kubebuilder:rbac:groups=tekton.dev,resources=pipelineruns;pipelineruns/status,verbs=get;list;watch;update;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the Event object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.19.0/pkg/reconcile
 func (r *EventReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrllog.FromContext(ctx).WithName("EventController")
 	ctx = ctrllog.IntoContext(ctx, log)
 
 	var evt corev1.Event
+	var pod corev1.Pod
+	var errMessage string
+	defer func() {
+		if evt.Name != "" {
+			if err := r.markEventAsProcessed(ctx, &evt); err != nil {
+				log.Error(err, "failed to mark event as processed", "event", evt.Name)
+			}
+		}
+
+		// If any error happens and we can't generate the token for the pod,
+		// we should cancel the corresponding pipelinerun, otherwise it will
+		// remains in running state, waiting for the secret to be ready until
+		// timeout.
+		if pod.Name != "" && errMessage != "" {
+			plrName, ok := pod.Labels["tekton.dev/pipelineRun"]
+			if !ok {
+				return
+			}
+
+			var plr tektonv1.PipelineRun
+			if err := r.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: plrName}, &plr); err != nil {
+				if apierrors.IsNotFound(err) {
+					// The PipelineRun is gone, we can't update it.
+					return
+				}
+				log.Error(err, "unable to get corresponding pipelinerun for cancellation", "pod", pod.Name)
+				// Cannot proceed if we can't get the PipelineRun.
+				return
+			}
+
+			// Cancel the PipelineRun
+			original := plr.DeepCopy()
+			plr.Spec.Status = tektonv1.PipelineRunSpecStatusCancelled
+			plr.Status.MarkFailed(string(tektonv1.PipelineRunReasonCancelled), "%s", errMessage)
+			patch := client.MergeFrom(original)
+			err := r.Patch(ctx, &plr, patch)
+			if err != nil {
+				log.Error(err, "unable to cancel pipelinerun", "pipelinerun", plr.Name)
+			}
+		}
+	}()
+
 	if err := r.Get(ctx, req.NamespacedName, &evt); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -93,9 +130,6 @@ func (r *EventReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	if len(matches) < 2 {
 		// This is not an event we're monitoring
-		if err := r.markEventAsProcessed(ctx, &evt); err != nil {
-			return ctrl.Result{}, err
-		}
 		return ctrl.Result{}, nil
 	}
 	volumeName := matches[1]
@@ -105,13 +139,10 @@ func (r *EventReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	podNamespace := evt.InvolvedObject.Namespace
 
 	// Get the actual corresponding Pod object for this event
-	var pod corev1.Pod
 	if err := r.Get(ctx, client.ObjectKey{Namespace: podNamespace, Name: podName}, &pod); err != nil {
 		if apierrors.IsNotFound(err) {
-			// This is an event related to an old Pod which doesn't exist anymore
-			if err := r.markEventAsProcessed(ctx, &evt); err != nil {
-				return ctrl.Result{}, err
-			}
+			// Pod has gone, we can't proceed
+			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
 	}
@@ -126,9 +157,6 @@ func (r *EventReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	}
 	if secretName == "" {
 		// Volume doesn't have a corresponding secret, ignore it
-		if err := r.markEventAsProcessed(ctx, &evt); err != nil {
-			return ctrl.Result{}, err
-		}
 		return ctrl.Result{}, nil
 	}
 
@@ -138,10 +166,9 @@ func (r *EventReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		if apierrors.IsNotFound(err) {
 			// Secret doesn't exist, in theory this should not happen unless someone
 			// deleted the secret by manual, anyway we will ignore this
-			if err := r.markEventAsProcessed(ctx, &evt); err != nil {
-				return ctrl.Result{}, err
-			}
+			return ctrl.Result{}, nil
 		}
+		errMessage = err.Error()
 		return ctrl.Result{}, err
 	}
 
@@ -157,19 +184,30 @@ func (r *EventReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		// Get the component
 		var comp appstudiov1alpha1.Component
 		if err := r.Get(ctx, client.ObjectKey{Namespace: componentNamespace, Name: componentName}, &comp); err != nil {
+			if apierrors.IsNotFound(err) {
+				// Component has gone, we can't proceed
+				return ctrl.Result{}, nil
+			}
+			errMessage = err.Error()
 			return ctrl.Result{}, err
 		}
 
 		// Create GitComponent from Component
 		gitComp, err := component.NewGitComponent(&comp, r.Client, ctx)
 		if err != nil {
-			return ctrl.Result{}, err
+			errMessage = err.Error()
+			// Do not requeue, the error is not related to the cluster issues
+			return ctrl.Result{}, nil
 		}
 
 		// When this is a GitHub component, it also refreshes token if needed
 		token, err := gitComp.GetToken()
 		if err != nil {
-			return ctrl.Result{}, err
+			log.Error(err, "failed to generate token for component", "component", comp.Name)
+			errMessage = err.Error()
+			// Do not requeue, the error is probably caused by Konflux GitHub
+			// installation issue, which retry won't help
+			return ctrl.Result{}, nil
 		}
 
 		// Add the missing Renovate token
@@ -178,14 +216,12 @@ func (r *EventReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 		// Update the secret
 		if err := r.Update(ctx, &secret); err != nil {
-			log.Error(err, "failed to update renovate token in secret", secret, secretName)
+			log.Error(err, "failed to update renovate token in secret", "secret", secretName)
+			errMessage = err.Error()
 			return ctrl.Result{}, err
 		}
 	}
 
-	if err := r.markEventAsProcessed(ctx, &evt); err != nil {
-		return ctrl.Result{}, err
-	}
 	return ctrl.Result{}, nil
 }
 
