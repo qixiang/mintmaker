@@ -109,6 +109,8 @@ func (r *EventReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 			err := r.Patch(ctx, &plr, patch)
 			if err != nil {
 				log.Error(err, "unable to cancel pipelinerun", "pipelinerun", plr.Name)
+			} else {
+				log.Info("pipelinerun is cancelled", "pipelinerun", plr.Name, "reason", errMessage)
 			}
 		}
 	}()
