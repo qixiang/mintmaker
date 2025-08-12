@@ -17,6 +17,8 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -64,10 +66,12 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
+	var pprofAddr string
 	var tlsOpts []func(*tls.Config)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", "0", "The address the metrics endpoint binds to. "+
 		"Use :8443 for HTTPS or :8080 for HTTP, or leave as 0 to disable the metrics service.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	flag.StringVar(&pprofAddr, "pprof-bind-address", "", "The address the pprof endpoint binds to. Use :6060 to enable profiling.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
@@ -152,6 +156,23 @@ func main() {
 
 	ctx := ctrl.SetupSignalHandler()
 	config.InitGlobalConfig(ctx, mgr.GetAPIReader())
+
+	// Start pprof server for debugging
+	if pprofAddr != "" && os.Getenv("ENABLE_PROFILING") == "true" {
+		go func() {
+			// Bind to localhost only for security in production
+			addr := pprofAddr
+			if pprofAddr[0] == ':' {
+				addr = "127.0.0.1" + pprofAddr
+			}
+			setupLog.Info("starting pprof server", "address", addr)
+			if err := http.ListenAndServe(addr, nil); err != nil {
+				setupLog.Error(err, "pprof server failed")
+			}
+		}()
+	} else if pprofAddr != "" {
+		setupLog.Info("pprof server disabled", "reason", "ENABLE_PPROFLING env var not set to 'true'")
+	}
 
 	if err = (&controller.DependencyUpdateCheckReconciler{
 		Client: mgr.GetClient(),
