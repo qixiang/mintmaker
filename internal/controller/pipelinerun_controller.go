@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"knative.dev/pkg/apis"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -52,7 +53,9 @@ func (r *PipelineRunReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 // SetupWithManager sets up the controller with the Manager.
 func (r *PipelineRunReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&tektonv1.PipelineRun{}).
+		For(&tektonv1.PipelineRun{}, builder.WithPredicates(predicate.NewPredicateFuncs(func(object client.Object) bool {
+			return object.GetNamespace() == MintMakerNamespaceName
+		}))).
 		WithEventFilter(predicate.Funcs{
 			CreateFunc: func(e event.CreateEvent) bool {
 				return false
@@ -61,9 +64,6 @@ func (r *PipelineRunReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return false
 			},
 			UpdateFunc: func(e event.UpdateEvent) bool {
-				if e.ObjectNew.GetNamespace() != MintMakerNamespaceName {
-					return false
-				}
 				if oldPipelineRun, ok := e.ObjectOld.(*tektonv1.PipelineRun); ok {
 					if newPipelineRun, ok := e.ObjectNew.(*tektonv1.PipelineRun); ok {
 						if !oldPipelineRun.IsDone() && newPipelineRun.IsDone() {

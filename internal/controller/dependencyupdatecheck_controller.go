@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -385,11 +386,6 @@ func (r *DependencyUpdateCheckReconciler) Reconcile(ctx context.Context, req ctr
 	log := ctrllog.FromContext(ctx).WithName("DependencyUpdateCheckController")
 	ctx = ctrllog.IntoContext(ctx, log)
 
-	// Ignore CRs that are not from the mintmaker namespace
-	if req.Namespace != MintMakerNamespaceName {
-		return ctrl.Result{}, nil
-	}
-
 	dependencyupdatecheck := &mmv1alpha1.DependencyUpdateCheck{}
 	err := r.Client.Get(ctx, req.NamespacedName, dependencyupdatecheck)
 	if err != nil {
@@ -492,7 +488,9 @@ func (r *DependencyUpdateCheckReconciler) Reconcile(ctx context.Context, req ctr
 func (r *DependencyUpdateCheckReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// we are monitoring the creation of DependencyUpdateCheck
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&mmv1alpha1.DependencyUpdateCheck{}).
+		For(&mmv1alpha1.DependencyUpdateCheck{}, builder.WithPredicates(predicate.NewPredicateFuncs(func(object client.Object) bool {
+			return object.GetNamespace() == MintMakerNamespaceName
+		}))).
 		WithEventFilter(predicate.Funcs{
 			CreateFunc:  func(createEvent event.CreateEvent) bool { return true },
 			DeleteFunc:  func(deleteEvent event.DeleteEvent) bool { return false },
