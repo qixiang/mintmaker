@@ -64,6 +64,9 @@ func (r *PipelineRunReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				return false
 			},
 			UpdateFunc: func(e event.UpdateEvent) bool {
+				if e.ObjectNew.GetNamespace() != MintMakerNamespaceName {
+					return false
+				}
 				if oldPipelineRun, ok := e.ObjectOld.(*tektonv1.PipelineRun); ok {
 					if newPipelineRun, ok := e.ObjectNew.(*tektonv1.PipelineRun); ok {
 						if !oldPipelineRun.IsDone() && newPipelineRun.IsDone() {
