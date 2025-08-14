@@ -494,10 +494,12 @@ func (r *DependencyUpdateCheckReconciler) SetupWithManager(mgr ctrl.Manager) err
 			return object.GetNamespace() == MintMakerNamespaceName
 		}))).
 		WithEventFilter(predicate.Funcs{
-			CreateFunc:  func(createEvent event.CreateEvent) bool { return true },
-			DeleteFunc:  func(deleteEvent event.DeleteEvent) bool { return false },
-			UpdateFunc:  func(updateEvent event.UpdateEvent) bool { return false },
-			GenericFunc: func(genericEvent event.GenericEvent) bool { return false },
+			CreateFunc: func(e event.CreateEvent) bool {
+				return e.Object.GetNamespace() == MintMakerNamespaceName
+			},
+			DeleteFunc:  func(e event.DeleteEvent) bool { return false },
+			UpdateFunc:  func(e event.UpdateEvent) bool { return false },
+			GenericFunc: func(e event.GenericEvent) bool { return false },
 		}).
 		Complete(r)
 }

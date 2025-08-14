@@ -237,6 +237,9 @@ func (r *EventReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}))).
 		WithEventFilter(predicate.Funcs{
 			CreateFunc: func(e event.CreateEvent) bool {
+				if e.Object.GetNamespace() != MintMakerNamespaceName {
+					return false
+				}
 				evt, ok := e.Object.(*corev1.Event)
 				if !ok {
 					return false
