@@ -175,9 +175,10 @@ func main() {
 	}
 
 	if err = (&controller.DependencyUpdateCheckReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Config: config.GetConfig(),
+		Client:    mgr.GetClient(),
+		APIReader: mgr.GetAPIReader(),
+		Scheme:    mgr.GetScheme(),
+		Config:    config.GetConfig(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "DependencyUpdateCheck")
 		os.Exit(1)
@@ -193,8 +194,9 @@ func main() {
 	}
 
 	if err = (&controller.EventReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:    mgr.GetClient(),
+		APIReader: mgr.GetAPIReader(),
+		Scheme:    mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Event")
 		os.Exit(1)

@@ -38,7 +38,8 @@ import (
 // EventReconciler reconciles a Event object
 type EventReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	APIReader client.Reader
+	Scheme    *runtime.Scheme
 }
 
 // markEventAsProcessed adds an annotation to the event indicating it has been processed
@@ -92,7 +93,7 @@ func (r *EventReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 			}
 
 			var plr tektonv1.PipelineRun
-			if err := r.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: plrName}, &plr); err != nil {
+			if err := r.APIReader.Get(ctx, client.ObjectKey{Namespace: pod.Namespace, Name: plrName}, &plr); err != nil {
 				if apierrors.IsNotFound(err) {
 					// The PipelineRun is gone, we can't update it.
 					return
@@ -116,7 +117,7 @@ func (r *EventReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 		}
 	}()
 
-	if err := r.Get(ctx, req.NamespacedName, &evt); err != nil {
+	if err := r.APIReader.Get(ctx, req.NamespacedName, &evt); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
@@ -142,7 +143,7 @@ func (r *EventReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 	podNamespace := evt.InvolvedObject.Namespace
 
 	// Get the actual corresponding Pod object for this event
-	if err := r.Get(ctx, client.ObjectKey{Namespace: podNamespace, Name: podName}, &pod); err != nil {
+	if err := r.APIReader.Get(ctx, client.ObjectKey{Namespace: podNamespace, Name: podName}, &pod); err != nil {
 		if apierrors.IsNotFound(err) {
 			// Pod has gone, we can't proceed
 			return ctrl.Result{}, nil
@@ -165,7 +166,7 @@ func (r *EventReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	// Get the secret
 	var secret corev1.Secret
-	if err := r.Get(ctx, client.ObjectKey{Namespace: podNamespace, Name: secretName}, &secret); err != nil {
+	if err := r.APIReader.Get(ctx, client.ObjectKey{Namespace: podNamespace, Name: secretName}, &secret); err != nil {
 		if apierrors.IsNotFound(err) {
 			// Secret doesn't exist, in theory this should not happen unless someone
 			// deleted the secret by manual, anyway we will ignore this
@@ -186,7 +187,7 @@ func (r *EventReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 		// Get the component
 		var comp appstudiov1alpha1.Component
-		if err := r.Get(ctx, client.ObjectKey{Namespace: componentNamespace, Name: componentName}, &comp); err != nil {
+		if err := r.APIReader.Get(ctx, client.ObjectKey{Namespace: componentNamespace, Name: componentName}, &comp); err != nil {
 			if apierrors.IsNotFound(err) {
 				// Component has gone, we can't proceed
 				return ctrl.Result{}, nil

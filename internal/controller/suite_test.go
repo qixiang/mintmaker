@@ -105,13 +105,13 @@ var _ = BeforeSuite(func() {
 	Config := config.GetConfig()
 	Expect(Config).NotTo(BeNil())
 
-	err = (NewDependencyUpdateCheckReconciler(k8sManager.GetClient(), k8sManager.GetScheme(), Config, k8sManager.GetEventRecorderFor("DependencyUpdateCheckController"))).SetupWithManager(k8sManager)
+	err = (NewDependencyUpdateCheckReconciler(k8sManager.GetClient(), k8sManager.GetAPIReader(), k8sManager.GetScheme(), Config, k8sManager.GetEventRecorderFor("DependencyUpdateCheckController"))).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
 	err = (&PipelineRunReconciler{Client: k8sManager.GetClient(), Scheme: k8sManager.GetScheme(), Config: Config}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
-	err = (&EventReconciler{Client: k8sManager.GetClient(), Scheme: k8sManager.GetScheme()}).SetupWithManager(k8sManager)
+	err = (&EventReconciler{Client: k8sManager.GetClient(), APIReader: k8sManager.GetAPIReader(), Scheme: k8sManager.GetScheme()}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
 	go func() {
