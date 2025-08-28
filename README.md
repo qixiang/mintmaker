@@ -81,7 +81,7 @@ make test
 ```
 
 ## Contributing
-To contribute to MintMaker you need to be part of the [MintMaker Maintainers](https://github.com/orgs/konflux-ci/teams/mintmaker-maintainers) team.
+We welcome contributions to MintMaker! You can contribute by opening pull requests, reporting issues, or suggesting improvements. If you need to contact the maintainers, please reach out to the code owners listed in [CODEOWNERS](.github/CODEOWNERS).
 
 **NOTE:** Run `make help` for more information on all potential `make` targets
 
