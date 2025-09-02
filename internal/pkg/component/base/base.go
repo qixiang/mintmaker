@@ -80,7 +80,7 @@ func (c *BaseComponent) GetRepository() string {
 
 type HostRule map[string]string
 
-func (c *BaseComponent) TransformHostRules(ctx context.Context, registrySecret *corev1.Secret) ([]HostRule, error) {
+func (c *BaseComponent) GetHostRules(ctx context.Context, registrySecret *corev1.Secret) ([]HostRule, error) {
 	log := logger.FromContext(ctx)
 
 	if _, exists := registrySecret.Data[corev1.DockerConfigJsonKey]; !exists {
@@ -127,11 +127,13 @@ func (c *BaseComponent) TransformHostRules(ctx context.Context, registrySecret *
 	return hostRules, nil
 }
 
-func (c *BaseComponent) GetRenovateBaseConfig(client client.Client, ctx context.Context, registrySecret *corev1.Secret) (map[string]interface{}, error) {
-
+func (c *BaseComponent) GetRenovateBaseConfig(ctx context.Context, client client.Client) (map[string]interface{}, error) {
+	renovateBaseConfigMutex.RLock()
 	if renovateBaseConfig != nil {
+		defer renovateBaseConfigMutex.RUnlock()
 		return renovateBaseConfig, nil
 	}
+	renovateBaseConfigMutex.RUnlock()
 
 	baseConfig := corev1.ConfigMap{}
 	configmapKey := types.NamespacedName{Namespace: "mintmaker", Name: "renovate-config"}
@@ -150,14 +152,6 @@ func (c *BaseComponent) GetRenovateBaseConfig(client client.Client, ctx context.
 
 	for k, v := range selfHostedConfig {
 		config[k] = v
-	}
-
-	if registrySecret != nil {
-		hostRules, err := c.TransformHostRules(ctx, registrySecret)
-
-		if err == nil {
-			config["hostRules"] = hostRules
-		}
 	}
 
 	renovateBaseConfigMutex.Lock()
