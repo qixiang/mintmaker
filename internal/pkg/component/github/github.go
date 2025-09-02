@@ -367,9 +367,17 @@ func (c *Component) GetRenovateConfig(registrySecret *corev1.Secret) (string, er
 		return GetRenovateConfigFn(registrySecret)
 	}
 
-	baseConfig, err := c.GetRenovateBaseConfig(c.client, c.ctx, registrySecret)
+	baseConfig, err := c.GetRenovateBaseConfig(c.ctx, c.client)
 	if err != nil {
 		return "", err
+	}
+
+	// Add component-specific hostRules if registrySecret is provided
+	if registrySecret != nil {
+		hostRules, err := c.GetHostRules(c.ctx, registrySecret)
+		if err == nil && len(hostRules) > 0 {
+			baseConfig["hostRules"] = hostRules
+		}
 	}
 	appSlug, err := c.getAppSlug()
 	if err != nil {
