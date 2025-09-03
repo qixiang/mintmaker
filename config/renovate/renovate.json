@@ -25,7 +25,7 @@
   "enabledManagers": [
     "tekton",
     "dockerfile",
-    "rpm",
+    "rpm-lockfile",
     "custom.regex",
     "argocd",
     "crossplane",
@@ -557,30 +557,14 @@
       "versioning": "redhat"
     }
   ],
-  "rpm": {
+  "rpm-lockfile": {
     "enabled": true,
-    "packageRules": [
-      {
-        "groupName": "RPM updates",
-        "commitMessageAction": "",
-        "commitMessageTopic": "RPM updates",
-        "commitMessageExtra": "",
-        "matchManagers": [
-          "rpm"
-        ],
-        "separateMajorMinor": false,
-        "recreateWhen": "always",
-        "rebaseWhen": "behind-base-branch"
-      }
-    ],
-    "vulnerabilityAlerts": {
-      "branchTopic": "rpm-updates"
-    },
     "schedule": [
       "before 5am"
     ],
     "lockFileMaintenance": {
-      "enabled": false
+      "enabled": true,
+      "schedule": ["before 5am"]
     }
   },
   "lockFileMaintenance": {
