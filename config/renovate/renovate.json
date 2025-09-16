@@ -521,253 +521,51 @@
     }
   },
   "dockerfile": {
-    "enabled": true,
-    "schedule": [
-      "before 5am"
+    "packageRules": [
+      {
+        "matchPackageNames": [
+          "registry.access.redhat.com/rhel",
+          "registry.access.redhat.com/rhel-atomic",
+          "registry.access.redhat.com/rhel-init",
+          "registry.access.redhat.com/rhel-minimal",
+          "registry.access.redhat.com/rhceph/**",
+          "registry.access.redhat.com/rhgs3/**",
+          "registry.access.redhat.com/rhel7**",
+          "registry.access.redhat.com/rhel8/**",
+          "registry.access.redhat.com/rhel9/**",
+          "registry.access.redhat.com/rhscl/**",
+          "registry.access.redhat.com/ubi*{,/}**",
+          "registry.access.stage.redhat.com/rhel",
+          "registry.access.stage.redhat.com/rhel-atomic",
+          "registry.access.stage.redhat.com/rhel-init",
+          "registry.access.stage.redhat.com/rhel-minimal",
+          "registry.access.stage.redhat.com/rhceph/**",
+          "registry.access.stage.redhat.com/rhgs3/**",
+          "registry.access.stage.redhat.com/rhel7**",
+          "registry.access.stage.redhat.com/rhel8/**",
+          "registry.access.stage.redhat.com/rhel9/**",
+          "registry.access.stage.redhat.com/rhscl/**",
+          "registry.access.stage.redhat.com/ubi*{,/}**",
+          "redhat/**",
+          "registry.redhat.io/*",
+          "registry.stage.redhat.io/*"
+        ],
+        "versioning": "redhat"
+      }
     ]
   },
-  "packageRules": [
-    {
-      "matchPackageNames": [
-        "registry.access.redhat.com/rhel",
-        "registry.access.redhat.com/rhel-atomic",
-        "registry.access.redhat.com/rhel-init",
-        "registry.access.redhat.com/rhel-minimal",
-        "registry.access.redhat.com/rhceph/**",
-        "registry.access.redhat.com/rhgs3/**",
-        "registry.access.redhat.com/rhel7**",
-        "registry.access.redhat.com/rhel8/**",
-        "registry.access.redhat.com/rhel9/**",
-        "registry.access.redhat.com/rhscl/**",
-        "registry.access.redhat.com/ubi*{,/}**",
-        "registry.access.stage.redhat.com/rhel",
-        "registry.access.stage.redhat.com/rhel-atomic",
-        "registry.access.stage.redhat.com/rhel-init",
-        "registry.access.stage.redhat.com/rhel-minimal",
-        "registry.access.stage.redhat.com/rhceph/**",
-        "registry.access.stage.redhat.com/rhgs3/**",
-        "registry.access.stage.redhat.com/rhel7**",
-        "registry.access.stage.redhat.com/rhel8/**",
-        "registry.access.stage.redhat.com/rhel9/**",
-        "registry.access.stage.redhat.com/rhscl/**",
-        "registry.access.stage.redhat.com/ubi*{,/}**",
-        "redhat/**",
-        "registry.redhat.io/*",
-        "registry.stage.redhat.io/*"
-      ],
-      "versioning": "redhat"
-    }
-  ],
   "rpm-lockfile": {
-    "enabled": true,
-    "schedule": [
-      "before 5am"
-    ],
     "lockFileMaintenance": {
-      "enabled": true,
-      "schedule": ["before 5am"]
+      "enabled": true
     }
   },
   "lockFileMaintenance": {
     "enabled": true,
     "recreateWhen": "always",
     "rebaseWhen": "behind-base-branch",
-    "branchTopic": "lock-file-maintenance",
-    "schedule": [
-      "before 5am"
-    ]
-  },
-  "git-submodules": {
-    "enabled": true,
-    "schedule": [
-      "after 5am on tuesday"
-    ]
-  },
-  "argocd": {
-    "schedule": [
-      "after 5am on wednesday"
-    ]
-  },
-  "crossplane": {
-    "schedule": [
-      "after 5am on wednesday"
-    ]
-  },
-  "fleet": {
-    "schedule": [
-      "after 5am on wednesday"
-    ]
-  },
-  "flux": {
-    "schedule": [
-      "after 5am on wednesday"
-    ]
-  },
-  "helm-requirements": {
-    "schedule": [
-      "after 5am on wednesday"
-    ]
-  },
-  "helm-values": {
-    "schedule": [
-      "after 5am on wednesday"
-    ]
-  },
-  "helmfile": {
-    "schedule": [
-      "after 5am on wednesday"
-    ]
-  },
-  "helmsman": {
-    "schedule": [
-      "after 5am on wednesday"
-    ]
-  },
-  "helmv3": {
-    "schedule": [
-      "after 5am on wednesday"
-    ]
-  },
-  "jsonnet-bundler": {
-    "schedule": [
-      "after 5am on wednesday"
-    ]
-  },
-  "kubernetes": {
-    "schedule": [
-      "after 5am on wednesday"
-    ]
-  },
-  "kustomize": {
-    "schedule": [
-      "after 5am on wednesday"
-    ]
-  },
-  "gitlabci": {
-    "schedule": [
-      "after 5am on wednesday"
-    ]
-  },
-  "gitlabci-include": {
-    "schedule": [
-      "after 5am on wednesday"
-    ]
-  },
-  "asdf": {
-    "schedule": [
-      "after 5am on thursday"
-    ]
-  },
-  "fvm": {
-    "schedule": [
-      "after 5am on thursday"
-    ]
-  },
-  "hermit": {
-    "schedule": [
-      "after 5am on thursday"
-    ]
-  },
-  "homebrew": {
-    "schedule": [
-      "after 5am on thursday"
-    ]
-  },
-  "osgi": {
-    "schedule": [
-      "after 5am on thursday"
-    ]
-  },
-  "pre-commit": {
-    "enabled": true,
-    "schedule": [
-      "after 5am on thursday"
-    ]
-  },
-  "vendir": {
-    "schedule": [
-      "after 5am on thursday"
-    ]
-  },
-  "terraform": {
-    "schedule": [
-      "after 5am on friday"
-    ]
-  },
-  "terraform-version": {
-    "schedule": [
-      "after 5am on friday"
-    ]
-  },
-  "terragrunt": {
-    "schedule": [
-      "after 5am on friday"
-    ]
-  },
-  "terragrunt-version": {
-    "schedule": [
-      "after 5am on friday"
-    ]
-  },
-  "tflint-plugin": {
-    "schedule": [
-      "after 5am on friday"
-    ]
-  },
-  "pep621": {
-    "schedule": [
-      "after 5am on saturday"
-    ]
-  },
-  "pep723": {
-    "schedule": [
-      "after 5am on saturday"
-    ]
-  },
-  "pip-compile": {
-    "schedule": [
-      "after 5am on saturday"
-    ]
-  },
-  "pip_requirements": {
-    "schedule": [
-      "after 5am on saturday"
-    ]
-  },
-  "pip_setup": {
-    "schedule": [
-      "after 5am on saturday"
-    ]
-  },
-  "pipenv": {
-    "schedule": [
-      "after 5am on saturday"
-    ]
-  },
-  "poetry": {
-    "schedule": [
-      "after 5am on saturday"
-    ]
-  },
-  "pyenv": {
-    "schedule": [
-      "after 5am on saturday"
-    ]
-  },
-  "runtime-version": {
-    "schedule": [
-      "after 5am on saturday"
-    ]
-  },
-  "setup-cfg": {
-    "schedule": [
-      "after 5am on saturday"
-    ]
+    "branchTopic": "lock-file-maintenance"
   },
   "gomod": {
-    "schedule": [
-      "after 5am on sunday"
-    ],
     "postUpdateOptions": [
       "gomodUpdateImportPaths",
       "gomodTidy"
@@ -782,11 +580,6 @@
         ],
         "enabled": true
       }
-    ]
-  },
-  "ocb": {
-    "schedule": [
-      "after 5am on sunday"
     ]
   },
   "forkProcessing": "enabled",
