@@ -68,7 +68,13 @@
     "ocb",
     "gitlabci",
     "gitlabci-include",
-    "cargo"
+    "cargo",
+    "bun",
+    "bun-version",
+    "meteor",
+    "nodenv",
+    "npm",
+    "nvm"
   ],
   "tekton": {
     "managerFilePatterns": [
