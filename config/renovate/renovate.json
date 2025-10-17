@@ -74,7 +74,10 @@
     "meteor",
     "nodenv",
     "npm",
-    "nvm"
+    "nvm",
+    "bundler",
+    "ruby-version",
+    "puppet"
   ],
   "tekton": {
     "managerFilePatterns": [
