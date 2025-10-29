@@ -21,7 +21,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/xanzy/go-gitlab"
+	"gitlab.com/gitlab-org/api/client-go"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/utils/strings/slices"
 	"sigs.k8s.io/controller-runtime/pkg/client"
