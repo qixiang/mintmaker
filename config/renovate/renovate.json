@@ -74,7 +74,19 @@
     "meteor",
     "nodenv",
     "npm",
-    "nvm"
+    "nvm",
+    "bundler",
+    "ruby-version",
+    "puppet",
+    "gradle",
+    "gradle-wrapper",
+    "maven",
+    "maven-wrapper",
+    "deps-edn",
+    "sbt",
+    "scalafmt",
+    "leiningen",
+    "kotlin-script"
   ],
   "tekton": {
     "managerFilePatterns": [
