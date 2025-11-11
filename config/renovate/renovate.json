@@ -78,7 +78,16 @@
     "nvm",
     "bundler",
     "ruby-version",
-    "puppet"
+    "puppet",
+    "gradle",
+    "gradle-wrapper",
+    "maven",
+    "maven-wrapper",
+    "deps-edn",
+    "sbt",
+    "scalafmt",
+    "leiningen",
+    "kotlin-script"
   ],
   "tekton": {
     "managerFilePatterns": [
