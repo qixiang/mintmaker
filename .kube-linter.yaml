@@ -1,0 +1,10 @@
+# These checks are excluded because they produce false positives when linting
+# base kustomize manifests. The issues they flag are resolved when the final
+# manifests are rendered via kustomize build with overlays applied.
+checks:
+  exclude:
+    - dangling-service
+    - latest-tag
+    - liveness-port
+    - readiness-port
+    - non-existent-service-account
