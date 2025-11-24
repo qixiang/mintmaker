@@ -46,6 +46,8 @@ type PipelineRunReconciler struct {
 	Config *config.ControllerConfig
 }
 
+// +kubebuilder:rbac:groups=tekton.dev,resources=pipelineruns,verbs=get;list;watch
+
 func (r *PipelineRunReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	return ctrl.Result{}, nil
 }
