@@ -62,10 +62,12 @@ func (r *EventReconciler) markEventAsProcessed(ctx context.Context, event *corev
 	return nil
 }
 
-// +kubebuilder:rbac:groups="",resources=events,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=events/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups="",resources=events/finalizers,verbs=update
-// +kubebuilder:rbac:groups=tekton.dev,resources=pipelineruns;pipelineruns/status,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups="",resources=events,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;update
+// +kubebuilder:rbac:groups=appstudio.redhat.com,resources=components,verbs=get
+// +kubebuilder:rbac:groups=tekton.dev,resources=pipelineruns,verbs=get;patch
+// +kubebuilder:rbac:groups=tekton.dev,resources=pipelineruns/status,verbs=patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
