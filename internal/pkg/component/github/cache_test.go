@@ -60,36 +60,61 @@ var _ = Describe("StaleAllowedCache", func() {
 	})
 
 	Context("when accessing cached data", func() {
-		BeforeEach(func() {
-			// Initialize the cache, after that the refreshCount is 1
-			_, _ = cache.Get("test-key")
-		})
-
 		It("should return cached data without calling refresh function if not expired", func() {
-			data, ok := cache.Get("test-key")
+			// Use a local counter to avoid interference from background refreshes
+			// in other tests that might still be running.
+			var localRefreshCount int
+			var localMutex sync.Mutex
+
+			localRefreshFunc := func() (interface{}, error) {
+				localMutex.Lock()
+				defer localMutex.Unlock()
+				localRefreshCount++
+				return refreshData, nil
+			}
+			localCache := NewStaleAllowedCache(refreshDuration, localRefreshFunc)
+
+			// Initialize the cache
+			_, _ = localCache.Get("test-key")
+			Expect(localRefreshCount).To(Equal(1))
+
+			// Second access should not trigger refresh
+			data, ok := localCache.Get("test-key")
 
 			Expect(ok).To(BeTrue())
 			Expect(data).To(Equal(refreshData))
-			Expect(refreshCount).To(Equal(1))
+			Expect(localRefreshCount).To(Equal(1))
 		})
 
 		It("should call refresh function in background when data is expired", func() {
+			// Use a local counter to avoid interference from background refreshes
+			// in other tests that might still be running.
+			var localRefreshCount int
+			var localMutex sync.Mutex
+			localRefreshData := "test-data"
+
+			localRefreshFunc := func() (interface{}, error) {
+				time.Sleep(50 * time.Millisecond)
+				localMutex.Lock()
+				defer localMutex.Unlock()
+				localRefreshCount++
+				return localRefreshData, nil
+			}
+			localCache := NewStaleAllowedCache(refreshDuration, localRefreshFunc)
+
+			// Initialize the cache
+			_, _ = localCache.Get("test-key")
+			Expect(localRefreshCount).To(Equal(1))
+
 			// Wait for cache to expire
 			time.Sleep(refreshDuration + 10*time.Millisecond)
 
-			// Change the refreshData to verify we get the old data first
-			oldData := refreshData
-			refreshData = "new-data"
+			// Change the refresh data to verify we get the old data first
+			oldData := localRefreshData
+			localRefreshData = "new-data"
 
-			// Add a delay to the refresh function to simulate a slow refresh
-			originalRefreshFunc := refreshFunc
-			refreshFunc = func() (interface{}, error) {
-				time.Sleep(50 * time.Millisecond)
-				return originalRefreshFunc()
-			}
-
-			// First access should return stale data but trigger refresh
-			data, ok := cache.Get("test-key")
+			// First access should return stale data but trigger background refresh
+			data, ok := localCache.Get("test-key")
 
 			Expect(ok).To(BeTrue())
 			Expect(data).To(Equal(oldData)) // Should get old data
@@ -98,30 +123,41 @@ var _ = Describe("StaleAllowedCache", func() {
 			time.Sleep(100 * time.Millisecond)
 
 			// Second access should get new data
-			data, ok = cache.Get("test-key")
+			data, ok = localCache.Get("test-key")
 
 			Expect(ok).To(BeTrue())
 			Expect(data).To(Equal("new-data"))
-			Expect(refreshCount).To(Equal(2))
+			Expect(localRefreshCount).To(Equal(2))
 		})
 	})
 
 	Context("when multiple goroutines access the cache simultaneously", func() {
 		It("should only perform one refresh when multiple gets are called concurrently", func() {
-			// Add delay to refresh function to ensure concurrency
-			originalRefreshFunc := refreshFunc
-			refreshFunc = func() (interface{}, error) {
-				time.Sleep(50 * time.Millisecond)
-				return originalRefreshFunc()
-			}
+			// Use a local counter to avoid interference from background refreshes
+			// in other tests that might still be running.
+			var localRefreshCount int
+			var localMutex sync.Mutex
 
-			// Launch multiple goroutines to access the cache
+			// Create a new cache with a slow refresh function to ensure concurrency
+			slowRefreshFunc := func() (interface{}, error) {
+				time.Sleep(50 * time.Millisecond)
+				localMutex.Lock()
+				defer localMutex.Unlock()
+				localRefreshCount++
+				return refreshData, nil
+			}
+			localCache := NewStaleAllowedCache(refreshDuration, slowRefreshFunc)
+
+			// Launch multiple goroutines to access the cache.
+			// All goroutines will enter getWithRefresh() and either:
+			// 1. Be the first one and perform the refresh, or
+			// 2. Wait on refreshInProgress and then return the cached data
 			var wg sync.WaitGroup
 			for i := 0; i < 10; i++ {
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
-					data, ok := cache.Get("test-key")
+					data, ok := localCache.Get("test-key")
 					Expect(ok).To(BeTrue())
 					Expect(data).To(Equal(refreshData))
 				}()
@@ -129,7 +165,7 @@ var _ = Describe("StaleAllowedCache", func() {
 			wg.Wait()
 
 			// Should only have called refresh once
-			Expect(refreshCount).To(Equal(1))
+			Expect(localRefreshCount).To(Equal(1))
 		})
 	})
 
@@ -198,9 +234,10 @@ var _ = Describe("StaleAllowedCache", func() {
 			Expect(ok).To(BeTrue())
 			Expect(data).To(Equal("slow-data"))
 			// The first goroutine takes at least 100ms to refresh the cache,
-			// we started 10ms later, so it should take at least 90ms for the
-			// second access to get the cache data
-			Expect(duration).To(BeNumerically(">=", 90*time.Millisecond))
+			// we started ~10ms later, so it should take roughly 90ms for the
+			// second access to get the cache data. We use 80ms as a lower bound
+			// to account for OS scheduling variability.
+			Expect(duration).To(BeNumerically(">=", 80*time.Millisecond))
 
 			wg.Wait()
 			Expect(refreshCount).To(Equal(1))
