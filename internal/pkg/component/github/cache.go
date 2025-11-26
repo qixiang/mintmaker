@@ -71,12 +71,19 @@ func (c *StaleAllowedCache) getWithRefresh(key string) (interface{}, bool) {
 		return c.data.Load(key)
 	}
 
+	// Re-check if data exists and is still fresh after acquiring the lock.
+	// Another goroutine may have completed a refresh while we were waiting.
+	value, exists := c.data.Load(key)
+	expiryTime := c.expiry.Load().(time.Time)
+	if exists && !time.Now().After(expiryTime) {
+		c.refreshMutex.Unlock()
+		return value, true
+	}
+
 	// We're going to refresh the cache
 	c.refreshInProgress = true
 	c.refreshDone = make(chan struct{})
 	refreshDone := c.refreshDone
-
-	value, exists := c.data.Load(key)
 	c.refreshMutex.Unlock()
 
 	cleanup := func() {
