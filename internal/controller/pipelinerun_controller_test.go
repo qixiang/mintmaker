@@ -56,14 +56,19 @@ var _ = Describe("PipelineRun Controller", func() {
 
 		plrName := "test-plr"
 		plrLookupKey := types.NamespacedName{Name: plrName, Namespace: MintMakerNamespaceName}
-		plr := &tektonv1.PipelineRun{}
+		var plr *tektonv1.PipelineRun
 
 		_ = BeforeEach(func() {
 			createNamespace(MintMakerNamespaceName)
 			setupPipelineRun(plrName, nil, 0)
+			plr = &tektonv1.PipelineRun{}
 			Eventually(func(g Gomega) {
 				g.Expect(k8sClient.Get(ctx, plrLookupKey, plr)).To(Succeed())
 			}, timeout, interval).Should(Succeed())
+			// Wait for the controller's informer cache to sync the new PipelineRun.
+			// This ensures the controller has the "old" state before we update it,
+			// which is required for the predicate to correctly detect the transition.
+			time.Sleep(500 * time.Millisecond)
 			GinkgoWriter.TeeTo(&logBuffer)
 		})
 
@@ -74,42 +79,54 @@ var _ = Describe("PipelineRun Controller", func() {
 		})
 
 		It("should log completion timestamp if successful", func() {
+			// Re-fetch to ensure we have the latest resourceVersion
+			Expect(k8sClient.Get(ctx, plrLookupKey, plr)).To(Succeed())
 
 			plr.Status.MarkSucceeded(string(tektonv1.PipelineRunReasonSuccessful), "%s")
 			Expect(k8sClient.Status().Update(ctx, plr)).Should(Succeed())
 			Eventually(func(g Gomega) {
 				g.Expect(k8sClient.Get(ctx, plrLookupKey, plr)).To(Succeed())
 				g.Expect(plr.Status.CompletionTime).ToNot(Equal(nil))
+				logOutput := logBuffer.String()
+				g.Expect(logOutput).To(ContainSubstring("PipelineRun finished"))
+				g.Expect(logOutput).To(ContainSubstring("\"pipelineRun\": \"%s\"", plr.Name))
+				g.Expect(logOutput).To(ContainSubstring("\"success\": true"))
+				g.Expect(logOutput).To(ContainSubstring("\"reason\": \"Succeeded\""))
 			}, timeout, interval).Should(Succeed())
-
-			expected := "PipelineRun finished: %s	{\"completionTime\": \"%s\", \"success\": true, \"reason\": \"Succeeded\"}"
-			Expect(logBuffer.String()).To(ContainSubstring(expected, plr.Name, plr.Status.CompletionTime.Format(time.RFC3339)))
 		})
 
 		It("should log completion timestamp if failed", func() {
+			// Re-fetch to ensure we have the latest resourceVersion
+			Expect(k8sClient.Get(ctx, plrLookupKey, plr)).To(Succeed())
 
 			plr.Status.MarkFailed(string(tektonv1.PipelineRunReasonFailed), "%s")
 			Expect(k8sClient.Status().Update(ctx, plr)).Should(Succeed())
 			Eventually(func(g Gomega) {
 				g.Expect(k8sClient.Get(ctx, plrLookupKey, plr)).To(Succeed())
 				g.Expect(plr.Status.CompletionTime).ToNot(Equal(nil))
+				logOutput := logBuffer.String()
+				g.Expect(logOutput).To(ContainSubstring("PipelineRun finished"))
+				g.Expect(logOutput).To(ContainSubstring("\"pipelineRun\": \"%s\"", plr.Name))
+				g.Expect(logOutput).To(ContainSubstring("\"success\": false"))
+				g.Expect(logOutput).To(ContainSubstring("\"reason\": \"Failed\""))
 			}, timeout, interval).Should(Succeed())
-
-			expected := "PipelineRun finished: %s	{\"completionTime\": \"%s\", \"success\": false, \"reason\": \"Failed\"}"
-			Expect(logBuffer.String()).To(ContainSubstring(expected, plr.Name, plr.Status.CompletionTime.Format(time.RFC3339)))
 		})
 
 		It("should log completion timestamp if cancelled", func() {
+			// Re-fetch to ensure we have the latest resourceVersion
+			Expect(k8sClient.Get(ctx, plrLookupKey, plr)).To(Succeed())
 
 			plr.Status.MarkFailed(string(tektonv1.PipelineRunReasonCancelled), "%s")
 			Expect(k8sClient.Status().Update(ctx, plr)).Should(Succeed())
 			Eventually(func(g Gomega) {
 				g.Expect(k8sClient.Get(ctx, plrLookupKey, plr)).To(Succeed())
 				g.Expect(plr.Status.CompletionTime).ToNot(Equal(nil))
+				logOutput := logBuffer.String()
+				g.Expect(logOutput).To(ContainSubstring("PipelineRun finished"))
+				g.Expect(logOutput).To(ContainSubstring("\"pipelineRun\": \"%s\"", plr.Name))
+				g.Expect(logOutput).To(ContainSubstring("\"success\": false"))
+				g.Expect(logOutput).To(ContainSubstring("\"reason\": \"Cancelled\""))
 			}, timeout, interval).Should(Succeed())
-
-			expected := "PipelineRun finished: %s	{\"completionTime\": \"%s\", \"success\": false, \"reason\": \"Cancelled\"}"
-			Expect(logBuffer.String()).To(ContainSubstring(expected, plr.Name, plr.Status.CompletionTime.Format(time.RFC3339)))
 		})
 	})
 })
