@@ -68,8 +68,8 @@ var _ = BeforeSuite(func() {
 
 	By("bootstrapping test environment")
 
-	applicationApiDepVersion := "v0.0.0-20240812090716-e7eb2ecfb409"
-	pipelineDepVersion := "v0.69.1"
+	applicationApiDepVersion := "v0.0.0-20250324201748-5a9670bf7679"
+	pipelineDepVersion := "v1.5.0"
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("../..", "config", "crd", "bases"),
