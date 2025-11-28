@@ -142,6 +142,16 @@ func NewPipelineRunBuilder(name, namespace string) *PipelineRunBuilder {
 												RunAsUser:                &normalUser,
 												AllowPrivilegeEscalation: ptr.To(false),
 											},
+											ComputeResources: corev1.ResourceRequirements{
+												Requests: corev1.ResourceList{
+													"cpu":    resource.MustParse("100m"),
+													"memory": resource.MustParse("256Mi"),
+												},
+												Limits: corev1.ResourceList{
+													"cpu":    resource.MustParse("100m"),
+													"memory": resource.MustParse("256Mi"),
+												},
+											},
 										},
 										{
 											Name:  "prepare-rpm-cert",
@@ -159,6 +169,16 @@ func NewPipelineRunBuilder(name, namespace string) *PipelineRunBuilder {
 												AllowPrivilegeEscalation: ptr.To(false),
 												RunAsUser:                &rootUser,
 											},
+											ComputeResources: corev1.ResourceRequirements{
+												Requests: corev1.ResourceList{
+													"cpu":    resource.MustParse("100m"),
+													"memory": resource.MustParse("256Mi"),
+												},
+												Limits: corev1.ResourceList{
+													"cpu":    resource.MustParse("100m"),
+													"memory": resource.MustParse("256Mi"),
+												},
+											},
 										},
 										{
 											Name:   "renovate",
@@ -172,8 +192,8 @@ func NewPipelineRunBuilder(name, namespace string) *PipelineRunBuilder {
 											},
 											ComputeResources: corev1.ResourceRequirements{
 												Requests: corev1.ResourceList{
-													"cpu":    resource.MustParse("150m"),
-													"memory": resource.MustParse("512Mi"),
+													"cpu":    resource.MustParse("300m"),
+													"memory": resource.MustParse("2.5Gi"),
 												},
 												Limits: corev1.ResourceList{
 													"cpu":    resource.MustParse("300m"),
