@@ -296,7 +296,7 @@ func NewPipelineRunBuilder(name, namespace string) *PipelineRunBuilder {
 												},
 												{
 													Name:  "KITE_API_URL",
-													Value: getKiteAPIURL(config.GetConfig()), // Use config with fallback
+													Value: config.Get().Kite.APIURL,
 												},
 												{
 													Name:  "LOG_FILE",
@@ -549,9 +549,3 @@ func (b *PipelineRunBuilder) WithTimeouts(timeouts *tektonv1.TimeoutFields) *Pip
 	return b
 }
 
-func getKiteAPIURL(config *config.ControllerConfig) string {
-	if config != nil && config.GlobalConfig.KiteAPIURL != "" {
-		return config.GlobalConfig.KiteAPIURL
-	}
-	return "" // Will cause error if not set, which is good
-}

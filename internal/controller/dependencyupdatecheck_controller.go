@@ -41,7 +41,6 @@ import (
 
 	mmv1alpha1 "github.com/konflux-ci/mintmaker/api/v1alpha1"
 	"github.com/konflux-ci/mintmaker/internal/pkg/component"
-	"github.com/konflux-ci/mintmaker/internal/pkg/config"
 	. "github.com/konflux-ci/mintmaker/internal/pkg/constant"
 	mintmakermetrics "github.com/konflux-ci/mintmaker/internal/pkg/metrics"
 	"github.com/konflux-ci/mintmaker/internal/pkg/tekton"
@@ -55,15 +54,13 @@ type DependencyUpdateCheckReconciler struct {
 	Client    client.Client
 	APIReader client.Reader
 	Scheme    *runtime.Scheme
-	Config    *config.ControllerConfig
 }
 
-func NewDependencyUpdateCheckReconciler(client client.Client, apiReader client.Reader, scheme *runtime.Scheme, config *config.ControllerConfig, eventRecorder record.EventRecorder) *DependencyUpdateCheckReconciler {
+func NewDependencyUpdateCheckReconciler(client client.Client, apiReader client.Reader, scheme *runtime.Scheme, eventRecorder record.EventRecorder) *DependencyUpdateCheckReconciler {
 	return &DependencyUpdateCheckReconciler{
 		Client:    client,
 		APIReader: apiReader,
 		Scheme:    scheme,
-		Config:    config,
 	}
 }
 
