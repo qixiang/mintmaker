@@ -41,6 +41,7 @@ import (
 
 	mmv1alpha1 "github.com/konflux-ci/mintmaker/api/v1alpha1"
 	"github.com/konflux-ci/mintmaker/internal/pkg/component"
+	"github.com/konflux-ci/mintmaker/internal/pkg/config"
 	. "github.com/konflux-ci/mintmaker/internal/pkg/constant"
 	mintmakermetrics "github.com/konflux-ci/mintmaker/internal/pkg/metrics"
 	"github.com/konflux-ci/mintmaker/internal/pkg/tekton"
@@ -333,6 +334,11 @@ func (r *DependencyUpdateCheckReconciler) createPipelineRun(ctx context.Context,
 		}
 		secretOpts := tekton.NewMountOptions().WithTaskName("build").WithStepNames([]string{"renovate"}).WithReadOnly(true)
 		builder.WithSecret(renovateSecret.ObjectMeta.Name, "/home/renovate/.docker", secretItems, secretOpts)
+	}
+
+	// Add Kite integration if enabled
+	if cfg := config.Get(); cfg.Kite.Enabled {
+		builder.WithKiteIntegration(cfg.Kite.APIURL)
 	}
 
 	pipelineRun, err := builder.Build()
