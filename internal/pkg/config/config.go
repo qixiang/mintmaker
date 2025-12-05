@@ -26,6 +26,7 @@
 //	    "token-min-validity": "30m"
 //	  },
 //	  "kite": {
+//	    "enabled": true,
 //	    "api-url": "https://kite.example.com"
 //	  }
 //	}
@@ -41,6 +42,16 @@
 //   - Token created at 20:00, expires at 21:00
 //   - At 20:25 (35m remaining > 30m min): token is usable
 //   - At 20:35 (25m remaining < 30m min): token needs renewal
+//
+// Kite Configuration:
+//
+// Kite integration reports issues to Kite after analyzing Renovate logs.
+// It is disabled by default.
+//
+//   - enabled: Set to true to enable Kite integration. When enabled, a
+//     log-analyzer step is added to the pipelinerun. Defaults to false.
+//   - api-url: The URL of the Kite API endpoint. Can also be set via
+//     KITE_API_URL environment variable (config file takes precedence).
 package config
 
 import (
@@ -79,7 +90,12 @@ type GitHubConfig struct {
 
 // KiteConfig holds Kite-related configuration.
 type KiteConfig struct {
-	// APIURL is the URL of the Kite API.
+	// Enabled controls whether Kite integration is active.
+	// When enabled, a log-analyzer step is added to the pipeline to send
+	// Renovate logs to the Kite API. Defaults to false.
+	Enabled bool
+
+	// APIURL is the URL of the Kite API. Required when Enabled is true.
 	APIURL string
 }
 
@@ -96,7 +112,8 @@ type fileConfig struct {
 		TokenMinValidity string `json:"token-min-validity"`
 	} `json:"github"`
 	Kite struct {
-		APIURL string `json:"api-url"`
+		Enabled bool   `json:"enabled"`
+		APIURL  string `json:"api-url"`
 	} `json:"kite"`
 }
 
@@ -113,7 +130,8 @@ func defaultConfig() *Config {
 			TokenMinValidity: defaultTokenMinValidity,
 		},
 		Kite: KiteConfig{
-			APIURL: os.Getenv("KITE_API_URL"),
+			Enabled: false,
+			APIURL:  os.Getenv("KITE_API_URL"),
 		},
 	}
 }
@@ -156,6 +174,7 @@ func parse(data []byte, log logr.Logger) *Config {
 	}
 
 	// Kite config: file takes precedence over env var
+	cfg.Kite.Enabled = fc.Kite.Enabled
 	if fc.Kite.APIURL != "" {
 		cfg.Kite.APIURL = fc.Kite.APIURL
 	}
