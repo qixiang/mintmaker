@@ -582,7 +582,7 @@
   "rpm-lockfile": {
     "lockFileMaintenance": {
       "enabled": true,
-      "schedule": ["before 5am"]
+      "schedule": ["* 0-4 * * *"]
     }
   },
   "lockFileMaintenance": {
@@ -591,7 +591,7 @@
     "rebaseWhen": "behind-base-branch",
     "branchTopic": "lock-file-maintenance",
     "schedule": [
-      "before 5am"
+      "* 0-4 * * *"
     ]
   },
   "git-submodules": {
